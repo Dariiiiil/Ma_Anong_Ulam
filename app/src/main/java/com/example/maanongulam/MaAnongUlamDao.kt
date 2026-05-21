@@ -15,6 +15,9 @@ interface MaAnongUlamDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateIngredient(ingredient: IngredientEntity)
 
+    @androidx.room.Delete
+    suspend fun deleteIngredient(ingredient: IngredientEntity)
+
     @Query("SELECT * FROM ingredients")
     fun getAllIngredients(): Flow<List<IngredientEntity>>
 
@@ -35,6 +38,12 @@ interface MaAnongUlamDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecipe(recipe: RecipeEntity)
 
+    @androidx.room.Delete
+    suspend fun deleteRecipe(recipe: RecipeEntity)
+
     @Query("SELECT * FROM recipes")
-    suspend fun getAllRecipes(): List<RecipeEntity>
+    fun getAllRecipes(): Flow<List<RecipeEntity>>
+
+    @Query("SELECT * FROM recipes")
+    suspend fun getAllRecipesSnapshot(): List<RecipeEntity>
 }

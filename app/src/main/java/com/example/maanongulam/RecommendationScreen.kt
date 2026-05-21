@@ -19,6 +19,26 @@ fun RecommendationScreen(
     viewModel: RecommendationViewModel = viewModel()
 ) {
     val recommendations by viewModel.recommendations.collectAsState()
+    val cookingLog by viewModel.cookingLog.collectAsState()
+
+    if (cookingLog != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.clearCookingLog() },
+            title = { Text("Cooking Report") },
+            text = {
+                Column {
+                    cookingLog?.forEach { line ->
+                        Text(text = line, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearCookingLog() }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier

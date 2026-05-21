@@ -7,6 +7,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -14,18 +21,33 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IngredientInputScreen(
-    viewModel: IngredientViewModel = viewModel()
+    viewModel: IngredientViewModel = viewModel(),
+    onExpandList: () -> Unit = {}
 ) {
+    val ingredients by viewModel.ingredients.collectAsState()
+    
     var name by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("g") }
     var expanded by remember { mutableStateOf(false) }
     val units = listOf("g", "kg", "ml", "L")
 
+    var editingIngredient by remember { mutableStateOf<IngredientEntity?>(null) }
+
     val datePickerState = rememberDatePickerState()
     var showDatePicker by remember { mutableStateOf(false) }
     val selectedDate = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
     val dateText = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(selectedDate))
+
+    // Update form when editingIngredient changes
+    LaunchedEffect(editingIngredient) {
+        editingIngredient?.let {
+            name = it.name
+            quantity = it.quantity.toString()
+            unit = it.unit
+            datePickerState.selectedDateMillis = it.expirationDate ?: System.currentTimeMillis()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -33,7 +55,10 @@ fun IngredientInputScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(text = "Add New Ingredient", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = if (editingIngredient == null) "Add New Ingredient" else "Edit Ingredient",
+            style = MaterialTheme.typography.headlineMedium
+        )
 
         OutlinedTextField(
             value = name,
@@ -98,20 +123,104 @@ fun IngredientInputScreen(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(
-            onClick = {
-                val qty = quantity.toDoubleOrNull() ?: 0.0
-                viewModel.addIngredient(name, qty, unit, selectedDate)
-                // Clear fields after adding
-                name = ""
-                quantity = ""
-            },
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            enabled = name.isNotBlank() && quantity.isNotBlank()
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Add Ingredient")
+            if (editingIngredient != null) {
+                OutlinedButton(
+                    onClick = {
+                        editingIngredient = null
+                        name = ""
+                        quantity = ""
+                        unit = "g"
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cancel")
+                }
+            }
+
+            Button(
+                onClick = {
+                    val qty = quantity.toDoubleOrNull() ?: 0.0
+                    val currentEdit = editingIngredient
+                    if (currentEdit != null) {
+                        viewModel.updateIngredient(
+                            currentEdit.copy(
+                                name = name,
+                                quantity = qty,
+                                unit = unit,
+                                expirationDate = selectedDate
+                            )
+                        )
+                    } else {
+                        viewModel.addIngredient(name, qty, unit, selectedDate)
+                    }
+                    // Clear fields
+                    name = ""
+                    quantity = ""
+                    unit = "g"
+                    editingIngredient = null
+                },
+                modifier = Modifier.weight(1f),
+                enabled = name.isNotBlank() && quantity.isNotBlank()
+            ) {
+                Text(if (editingIngredient == null) "Add Ingredient" else "Update")
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = "Current Inventory", style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = onExpandList) {
+                Icon(Icons.Default.OpenInFull, contentDescription = "Expand List")
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(ingredients) { ingredient ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { editingIngredient = ingredient },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = ingredient.name, fontWeight = FontWeight.Bold)
+                            Text(text = "${ingredient.quantity} ${ingredient.unit}")
+                            val expiry = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                                .format(Date(ingredient.expirationDate))
+                            Text(
+                                text = "Expires: $expiry",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                        IconButton(onClick = { viewModel.deleteIngredient(ingredient) }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

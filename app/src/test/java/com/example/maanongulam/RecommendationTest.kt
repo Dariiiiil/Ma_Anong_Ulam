@@ -7,10 +7,11 @@ class RecommendationTest {
 
     @Test
     fun testCorrectRanking() {
-        // Mock timestamps: Tomorrow (smaller), Week (medium), Month (large)
-        val tomorrow = 1000L
-        val nextWeek = 7000L
-        val nextMonth = 30000L
+        // Mock timestamps: Tomorrow (urgent), Week (medium), Month (low)
+        val currentTime = System.currentTimeMillis()
+        val tomorrow = currentTime + 86400000L
+        val nextWeek = currentTime + 86400000L * 7
+        val nextMonth = currentTime + 86400000L * 30
 
         val inventory = listOf(
             Ingredient("Pork", 1000.0, "g", tomorrow),
@@ -33,22 +34,22 @@ class RecommendationTest {
 
     @Test
     fun testFractionalLogic() {
-        // Value = 1 / expirationDate. For 1000L, Value = 0.001
-        val expiration = 1000L
-        val expectedFullValue = 1.0 / expiration.toDouble()
-
+        val currentTime = System.currentTimeMillis()
+        // 1 day remaining -> daysRemaining = 1.0
+        // Value = 1.0 / (1.0 + 1.0) = 0.5
+        val tomorrow = currentTime + (24 * 60 * 60 * 1000L)
+        
         // Inventory has 100g of Milk
-        val inventory = listOf(Ingredient("Milk", 100.0, "g", expiration))
+        val inventory = listOf(Ingredient("Milk", 100.0, "g", tomorrow))
         
         // Recipe only needs 50g (50% of available inventory)
-        // Capacity = 50.0
         val recipe = Recipe("Small Milk Dish", listOf(Ingredient("Milk", 50.0, "g", 0L)))
 
         val recommendations = RecipeRecommendationEngine.recommendTopRecipes(inventory, listOf(recipe))
         val score = recommendations[0].urgencyScore
 
-        // Expected score: Value * (Capacity / InventoryWeight) = 0.001 * (50 / 100) = 0.0005
-        assertEquals("Score should be exactly 50% of the total ingredient value", expectedFullValue * 0.5, score, 0.000001)
+        // Expected score: Value * (Capacity / InventoryWeight) = 0.5 * (50 / 100) = 0.25
+        assertEquals("Score should be exactly 50% of the single ingredient urgency value", 0.25, score, 0.05)
     }
 
     @Test

@@ -57,14 +57,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
 
             suspend fun seedDatabase(dao: MaAnongUlamDao) {
-                // Default Ingredients with 0 quantity
+                val oneWeekFromNow = System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L)
+                
+                // Default Ingredients with some initial quantity to test the score
                 val defaultIngredients = listOf(
-                    IngredientEntity(name = "Chicken", quantity = 0.0, unit = "g", expirationDate = System.currentTimeMillis()),
-                    IngredientEntity(name = "Soy Sauce", quantity = 0.0, unit = "ml", expirationDate = System.currentTimeMillis()),
-                    IngredientEntity(name = "Vinegar", quantity = 0.0, unit = "ml", expirationDate = System.currentTimeMillis()),
-                    IngredientEntity(name = "Garlic", quantity = 0.0, unit = "g", expirationDate = System.currentTimeMillis()),
-                    IngredientEntity(name = "Peppercorns", quantity = 0.0, unit = "g", expirationDate = System.currentTimeMillis()),
-                    IngredientEntity(name = "Bay Leaves", quantity = 0.0, unit = "g", expirationDate = System.currentTimeMillis())
+                    IngredientEntity(name = "Chicken", quantity = 1000.0, unit = "g", expirationDate = oneWeekFromNow),
+                    IngredientEntity(name = "Soy Sauce", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow),
+                    IngredientEntity(name = "Vinegar", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow),
+                    IngredientEntity(name = "Garlic", quantity = 100.0, unit = "g", expirationDate = oneWeekFromNow),
+                    IngredientEntity(name = "Peppercorns", quantity = 50.0, unit = "g", expirationDate = oneWeekFromNow),
+                    IngredientEntity(name = "Bay Leaves", quantity = 10.0, unit = "g", expirationDate = oneWeekFromNow)
                 )
                 
                 defaultIngredients.forEach { dao.insertOrUpdateIngredient(it) }

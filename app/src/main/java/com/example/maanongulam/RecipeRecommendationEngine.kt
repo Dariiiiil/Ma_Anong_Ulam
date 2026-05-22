@@ -29,10 +29,10 @@ object RecipeRecommendationEngine {
             // 2. Prepare inventory items matching the recipe, normalized to base units (g/ml)
             val matchingInventory = inventory
                 .filter { invItem -> recipe.ingredients.any { it.name.equals(invItem.name, ignoreCase = true) } }
-                .map { it.copy(quantity = normalizeToMetric(it), unit = "g/ml") }
+                .map { it.copy(quantity = UnitConverter.toBaseUnit(it.quantity, it.unit), unit = "g/ml") }
 
             // 3. Calculate Capacity (Total metric quantity needed by the recipe)
-            val capacity = recipe.ingredients.sumOf { normalizeToMetric(it) }
+            val capacity = recipe.ingredients.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
 
             // 4. Calculate Urgency Score via Fractional Knapsack
             val score = RecommendationEngine.fractionalKnapsack(matchingInventory, capacity)
@@ -51,23 +51,12 @@ object RecipeRecommendationEngine {
         for (required in recipe.ingredients) {
             val totalAvailable = inventory
                 .filter { it.name.equals(required.name, ignoreCase = true) }
-                .sumOf { normalizeToMetric(it) }
+                .sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
             
-            if (totalAvailable < normalizeToMetric(required)) {
+            if (totalAvailable < UnitConverter.toBaseUnit(required.quantity, required.unit)) {
                 return true
             }
         }
         return false
-    }
-
-    /**
-     * Normalizes quantities to base metric units (grams or milliliters).
-     * Assumes 1kg = 1000g and 1L = 1000ml.
-     */
-    private fun normalizeToMetric(ingredient: Ingredient): Double {
-        return when (ingredient.unit.lowercase()) {
-            "kg", "l" -> ingredient.quantity * 1000.0
-            else -> ingredient.quantity
-        }
     }
 }

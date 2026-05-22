@@ -4,7 +4,6 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -23,15 +22,6 @@ interface MaAnongUlamDao {
 
     @Query("SELECT * FROM ingredients WHERE name = :name LIMIT 1")
     suspend fun getIngredientByName(name: String): IngredientEntity?
-
-    @Transaction
-    suspend fun deductIngredientQuantity(name: String, amountToDeduct: Double) {
-        val ingredient = getIngredientByName(name)
-        if (ingredient != null) {
-            val newQuantity = (ingredient.quantity - amountToDeduct).coerceAtLeast(0.0)
-            insertOrUpdateIngredient(ingredient.copy(quantity = newQuantity))
-        }
-    }
 
     // --- Recipes ---
 

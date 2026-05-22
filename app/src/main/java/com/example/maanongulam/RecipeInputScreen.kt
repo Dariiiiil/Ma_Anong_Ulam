@@ -28,7 +28,9 @@ fun RecipeInputScreen(
     val recipes by viewModel.allRecipes.collectAsState()
     
     var recipeName by remember { mutableStateOf("") }
-    val ingredients = remember { mutableStateListOf<Pair<String, String>>() } // Name to Quantity string
+    // Triple: Name, Quantity, Unit
+    val ingredients = remember { mutableStateListOf<Triple<String, String, String>>() } 
+    val units = listOf("g", "kg", "ml", "L")
 
     var editingRecipe by remember { mutableStateOf<RecipeEntity?>(null) }
 
@@ -38,7 +40,7 @@ fun RecipeInputScreen(
             recipeName = it.name
             ingredients.clear()
             it.ingredients.forEach { ing ->
-                ingredients.add(ing.name to ing.quantity.toString())
+                ingredients.add(Triple(ing.name, ing.quantity.toString(), ing.unit))
             }
         }
     }
@@ -73,24 +75,53 @@ fun RecipeInputScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 itemsIndexed(ingredients) { index, item ->
+                    var unitExpanded by remember { mutableStateOf(false) }
+                    
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedTextField(
                             value = item.first,
-                            onValueChange = { ingredients[index] = it to item.second },
+                            onValueChange = { ingredients[index] = Triple(it, item.second, item.third) },
                             label = { Text("Name") },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1.2f),
+                            singleLine = true
                         )
                         OutlinedTextField(
                             value = item.second,
-                            onValueChange = { ingredients[index] = item.first to it },
+                            onValueChange = { ingredients[index] = Triple(item.first, it, item.third) },
                             label = { Text("Qty") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(0.6f)
+                            modifier = Modifier.weight(0.7f),
+                            singleLine = true
                         )
+                        
+                        Box(modifier = Modifier.weight(0.7f)) {
+                            OutlinedButton(
+                                onClick = { unitExpanded = true },
+                                contentPadding = PaddingValues(horizontal = 4.dp),
+                                modifier = Modifier.fillMaxWidth().height(56.dp)
+                            ) {
+                                Text(item.third, style = MaterialTheme.typography.bodySmall)
+                            }
+                            DropdownMenu(
+                                expanded = unitExpanded,
+                                onDismissRequest = { unitExpanded = false }
+                            ) {
+                                units.forEach { selection ->
+                                    DropdownMenuItem(
+                                        text = { Text(selection) },
+                                        onClick = {
+                                            ingredients[index] = Triple(item.first, item.second, selection)
+                                            unitExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
                         IconButton(onClick = { ingredients.removeAt(index) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Remove")
                         }
@@ -99,7 +130,7 @@ fun RecipeInputScreen(
 
                 item {
                     TextButton(
-                        onClick = { ingredients.add("" to "") },
+                        onClick = { ingredients.add(Triple("", "", "g")) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null)
@@ -132,7 +163,7 @@ fun RecipeInputScreen(
                     val ingredientList = ingredients.mapNotNull {
                         val qty = it.second.toDoubleOrNull()
                         if (it.first.isNotBlank() && qty != null) {
-                            Ingredient(it.first, qty, "g", 0L)
+                            Ingredient(it.first, qty, it.third, 0L)
                         } else null
                     }
                     

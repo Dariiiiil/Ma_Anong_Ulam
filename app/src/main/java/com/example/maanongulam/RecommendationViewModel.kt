@@ -28,14 +28,14 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
             val log = mutableListOf<String>()
             val shortages = mutableListOf<String>()
             
-            // 1. First, check if we have enough of EVERYTHING
+            // 1. First, check if we have enough of EVERYTHING (with unit conversion)
             recipe.ingredients.forEach { needed ->
                 val current = dao.getIngredientByName(needed.name)
                 if (current == null) {
                     shortages.add("❌ ${needed.name}: Missing entirely (Need ${needed.quantity}${needed.unit})")
-                } else if (current.quantity < needed.quantity) {
-                    val shortfall = (needed.quantity - current.quantity)
-                    shortages.add("⚠️ ${needed.name}: Short by ${shortfall}${current.unit} (Have ${current.quantity}${current.unit}, Need ${needed.quantity}${current.unit})")
+                } else if (!UnitConverter.isEnough(current.quantity, current.unit, needed.quantity, needed.unit)) {
+                    val shortfall = UnitConverter.getShortfall(current.quantity, current.unit, needed.quantity, needed.unit)
+                    shortages.add("⚠️ ${needed.name}: Short by ${shortfall}${needed.unit} (Have ${current.quantity}${current.unit}, Need ${needed.quantity}${needed.unit})")
                 }
             }
 
@@ -51,9 +51,11 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                 log.add("Cooking ${recipe.name}...")
                 recipe.ingredients.forEach { needed ->
                     val current = dao.getIngredientByName(needed.name)!!
-                    val remaining = current.quantity - needed.quantity
-                    dao.deductIngredientQuantity(needed.name, needed.quantity)
-                    log.add("✅ ${needed.name}: Used ${needed.quantity}${current.unit} (${remaining}${current.unit} remaining)")
+                    val newQuantity = UnitConverter.calculateRemaining(
+                        current.quantity, current.unit, needed.quantity, needed.unit
+                    )
+                    dao.insertOrUpdateIngredient(current.copy(quantity = newQuantity))
+                    log.add("✅ ${needed.name}: Used ${needed.quantity}${needed.unit} (${newQuantity}${current.unit} remaining)")
                 }
                 log.add("")
                 log.add("Enjoy your meal! Inventory updated.")

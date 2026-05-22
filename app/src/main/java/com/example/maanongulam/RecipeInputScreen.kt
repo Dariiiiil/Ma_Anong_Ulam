@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -86,19 +87,48 @@ fun RecipeInputScreen(
                             value = item.first,
                             onValueChange = { ingredients[index] = Triple(it, item.second, item.third) },
                             label = { Text("Name") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+
+                        Row(
                             modifier = Modifier.weight(1.2f),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = item.second,
-                            onValueChange = { ingredients[index] = Triple(item.first, it, item.third) },
-                            label = { Text("Qty") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(0.7f),
-                            singleLine = true
-                        )
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    val current = item.second.toDoubleOrNull() ?: 0.0
+                                    if (current > 0) {
+                                        ingredients[index] = Triple(item.first, (current - 1).coerceAtLeast(0.0).toString(), item.third)
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(18.dp))
+                            }
+
+                            OutlinedTextField(
+                                value = item.second,
+                                onValueChange = { ingredients[index] = Triple(item.first, it, item.third) },
+                                label = { Text("Qty") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    val current = item.second.toDoubleOrNull() ?: 0.0
+                                    ingredients[index] = Triple(item.first, (current + 1).toString(), item.third)
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(18.dp))
+                            }
+                        }
                         
-                        Box(modifier = Modifier.weight(0.7f)) {
+                        Box(modifier = Modifier.weight(0.6f)) {
                             OutlinedButton(
                                 onClick = { unitExpanded = true },
                                 contentPadding = PaddingValues(horizontal = 4.dp),

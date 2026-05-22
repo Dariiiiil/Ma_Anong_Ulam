@@ -10,6 +10,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.ui.Alignment
@@ -45,7 +47,7 @@ fun IngredientInputScreen(
             name = it.name
             quantity = it.quantity.toString()
             unit = it.unit
-            datePickerState.selectedDateMillis = it.expirationDate ?: System.currentTimeMillis()
+            datePickerState.selectedDateMillis = it.expirationDate
         }
     }
 
@@ -69,15 +71,43 @@ fun IngredientInputScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedTextField(
-                value = quantity,
-                onValueChange = { quantity = it },
-                label = { Text("Quantity") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f)
-            )
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                IconButton(
+                    onClick = {
+                        val current = quantity.toDoubleOrNull() ?: 0.0
+                        if (current > 0) quantity = (current - 1).coerceAtLeast(0.0).toString()
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = "Decrease", modifier = Modifier.size(20.dp))
+                }
+                
+                OutlinedTextField(
+                    value = quantity,
+                    onValueChange = { quantity = it },
+                    label = { Text("Quantity") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+
+                IconButton(
+                    onClick = {
+                        val current = quantity.toDoubleOrNull() ?: 0.0
+                        quantity = (current + 1).toString()
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Increase", modifier = Modifier.size(20.dp))
+                }
+            }
 
             Box(modifier = Modifier.weight(0.6f)) {
                 OutlinedButton(

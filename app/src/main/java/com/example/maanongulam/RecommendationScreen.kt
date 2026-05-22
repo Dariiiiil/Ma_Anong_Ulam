@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.util.Locale
 
 @Composable
 fun RecommendationScreen(
@@ -150,9 +151,21 @@ fun RecipeCard(
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "Urgency Score: ${String.format("%.4f", recommendedRecipe.urgencyScore)}",
+                text = "Urgency Score: ${String.format(Locale.getDefault(), "%.4f", recommendedRecipe.urgencyScore)}",
                 style = MaterialTheme.typography.bodySmall
             )
+
+            if (recommendedRecipe.reasons.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                recommendedRecipe.reasons.forEach { reason ->
+                    Text(
+                        text = reason,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isTopPick) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 

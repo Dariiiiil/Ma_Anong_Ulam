@@ -7,7 +7,8 @@ data class RecommendedRecipe(
     val recipe: Recipe,
     val urgencyScore: Double,
     val isInsufficient: Boolean,
-    val reasons: List<String> = emptyList()
+    val reasons: List<String> = emptyList(),
+    val hasSpoiledIngredients: Boolean = false
 )
 
 /**
@@ -29,38 +30,53 @@ object RecipeRecommendationEngine {
             // 1. Check for ingredient sufficiency (Flagging)
             val isInsufficient = checkInsufficiency(inventory, recipe)
 
-            // 2. Prepare inventory items matching the recipe
+            // 2. Identify matching inventory items
             val recipeIngNames = recipe.ingredients.map { it.name.lowercase() }
             val matchingInvItems = inventory.filter { it.name.lowercase() in recipeIngNames }
 
-            val normalizedMatchingInv = matchingInvItems.map { 
+            // 3. Safety Check: Does it use spoiled ingredients?
+            // An item is spoiled if it has an expirationDate > 0 AND that date is in the past.
+            val spoiledInRecipe = matchingInvItems.filter { it.expirationDate > 0 && it.expirationDate < currentTime && it.quantity > 0 }
+            val hasSpoiled = spoiledInRecipe.isNotEmpty()
+
+            // 4. Prepare inventory items for algorithm - FILTER OUT spoiled (Option 1)
+            // Usable items are those with expirationDate == 0 (non-perishable) OR expirationDate >= currentTime (not yet spoiled)
+            val usableInv = matchingInvItems.filter { it.expirationDate == 0L || it.expirationDate >= currentTime }
+            val normalizedMatchingInv = usableInv.map { 
                 it.copy(quantity = UnitConverter.toBaseUnit(it.quantity, it.unit), unit = "g/ml") 
             }
 
-            // 3. Calculate Capacity (Total metric quantity needed by the recipe)
+            // 5. Calculate Capacity (Total metric quantity needed by the recipe)
             val capacity = recipe.ingredients.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
 
-            // 4. Calculate Urgency Score via Fractional Knapsack
-            val score = RecommendationEngine.fractionalKnapsack(normalizedMatchingInv, capacity)
+            // 6. Calculate Urgency Score via Fractional Knapsack (Spoiled items contribute 0 score now)
+            val score = if (hasSpoiled) 0.0 else RecommendationEngine.fractionalKnapsack(normalizedMatchingInv, capacity)
 
-            // 5. Generate reasons
+            // 7. Generate reasons
             val reasons = mutableListOf<String>()
             
-            // Sort matching items by most urgent (closest to expiry)
-            val urgentItems = matchingInvItems
+            if (hasSpoiled) {
+                reasons.add("💀 Contains spoiled: ${spoiledInRecipe.joinToString { it.name }}")
+            }
+
+            // Sort matching items by most urgent (closest to expiry, but NOT spoiled)
+            val urgentItems = usableInv
                 .filter { it.expirationDate > 0 && it.quantity > 0 }
                 .sortedBy { it.expirationDate }
                 .take(2)
 
             urgentItems.forEach { item ->
-                val daysLeft = ((item.expirationDate - currentTime).toDouble() / (1000 * 60 * 60 * 24)).toInt()
-                val dayWord = if (daysLeft == 1) "day" else "days"
-                
-                when {
-                    daysLeft < 0 -> reasons.add("🕒 ${item.name} is expired!")
-                    daysLeft == 0 -> reasons.add("🕒 ${item.name} expires today!")
-                    daysLeft <= 3 -> reasons.add("🕒 ${item.name} expires in $daysLeft $dayWord")
-                    else -> reasons.add("📦 Uses your ${item.name}")
+                if (item.expirationDate > 0) {
+                    val daysLeft = ((item.expirationDate - currentTime).toDouble() / (1000 * 60 * 60 * 24)).toInt()
+                    val dayWord = if (daysLeft == 1) "day" else "days"
+                    
+                    when {
+                        daysLeft == 0 -> reasons.add("🕒 ${item.name} expires today!")
+                        daysLeft <= 3 -> reasons.add("🕒 ${item.name} expires in $daysLeft $dayWord")
+                        else -> reasons.add("📦 Uses your ${item.name}")
+                    }
+                } else {
+                    reasons.add("📦 Uses your ${item.name}")
                 }
             }
 
@@ -72,7 +88,7 @@ object RecipeRecommendationEngine {
                 }
             }
 
-            RecommendedRecipe(recipe, score, isInsufficient, reasons)
+            RecommendedRecipe(recipe, score, isInsufficient, reasons, hasSpoiled)
         }
         .sortedByDescending { it.urgencyScore }
         .take(3)

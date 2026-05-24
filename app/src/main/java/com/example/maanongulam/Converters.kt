@@ -10,11 +10,13 @@ import com.google.gson.reflect.TypeToken
 class Converters {
     private val gson = Gson()
 
+    @Suppress("unused")
     @TypeConverter
     fun fromIngredientList(value: List<Ingredient>): String {
         return gson.toJson(value)
     }
 
+    @Suppress("unused")
     @TypeConverter
     fun toIngredientList(value: String): List<Ingredient> {
         val listType = object : TypeToken<List<Ingredient>>() {}.type

@@ -20,6 +20,15 @@ fun RecommendationScreen(
     viewModel: RecommendationViewModel = viewModel()
 ) {
     val recommendations by viewModel.recommendations.collectAsState()
+    
+    // Let's use the recommendations to find if any spoiled items exist in the inventory
+    val spoiledIngredients = remember(recommendations) {
+        recommendations.flatMap { it.reasons }
+            .filter { it.contains("💀 Contains spoiled") }
+            .map { it.replace("💀 Contains spoiled: ", "") }
+            .distinct()
+    }
+    
     val cookingLog by viewModel.cookingLog.collectAsState()
 
     if (cookingLog != null) {
@@ -52,6 +61,24 @@ fun RecommendationScreen(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
+        // Notification: Spoiled items alert
+        if (spoiledIngredients.isNotEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "Safety Alert: Some ingredients have spoiled! Check your inventory.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+
         if (recommendations.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No recommendations available. Add ingredients and recipes first!")
@@ -65,7 +92,7 @@ fun RecommendationScreen(
                         Text(
                             text = "Ulam of the Day",
                             style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = if (item.hasSpoiledIngredients) Color.Gray else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         RecipeCard(
@@ -102,11 +129,12 @@ fun RecipeCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = if (isTopPick) 
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        else 
-            CardDefaults.cardColors(),
-        elevation = if (isTopPick) CardDefaults.cardElevation(defaultElevation = 4.dp) else CardDefaults.cardElevation()
+        colors = when {
+            recommendedRecipe.hasSpoiledIngredients -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            isTopPick -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            else -> CardDefaults.cardColors()
+        },
+        elevation = if (isTopPick && !recommendedRecipe.hasSpoiledIngredients) CardDefaults.cardElevation(defaultElevation = 4.dp) else CardDefaults.cardElevation()
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -119,10 +147,23 @@ fun RecipeCard(
                 Text(
                     text = recommendedRecipe.recipe.name,
                     style = if (isTopPick) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = if (recommendedRecipe.hasSpoiledIngredients) Color.Gray else Color.Unspecified
                 )
                 
-                if (recommendedRecipe.isInsufficient) {
+                if (recommendedRecipe.hasSpoiledIngredients) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.error,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "UNSAFE",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color.White
+                        )
+                    }
+                } else if (recommendedRecipe.isInsufficient) {
                     Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
                         shape = MaterialTheme.shapes.small
@@ -150,10 +191,12 @@ fun RecipeCard(
 
             Spacer(modifier = Modifier.height(8.dp))
             
-            Text(
-                text = "Urgency Score: ${String.format(Locale.getDefault(), "%.4f", recommendedRecipe.urgencyScore)}",
-                style = MaterialTheme.typography.bodySmall
-            )
+            if (!recommendedRecipe.hasSpoiledIngredients) {
+                Text(
+                    text = "Urgency Score: ${String.format(Locale.getDefault(), "%.4f", recommendedRecipe.urgencyScore)}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
 
             if (recommendedRecipe.reasons.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -162,7 +205,9 @@ fun RecipeCard(
                         text = reason,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = if (isTopPick) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (recommendedRecipe.hasSpoiledIngredients) MaterialTheme.colorScheme.error 
+                                else if (isTopPick) MaterialTheme.colorScheme.onPrimaryContainer 
+                                else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -172,7 +217,8 @@ fun RecipeCard(
             Button(
                 onClick = onCookClick,
                 modifier = Modifier.align(Alignment.End),
-                colors = if (recommendedRecipe.isInsufficient)
+                enabled = !recommendedRecipe.hasSpoiledIngredients,
+                colors = if (recommendedRecipe.isInsufficient || recommendedRecipe.hasSpoiledIngredients)
                     ButtonDefaults.buttonColors(containerColor = Color.Gray)
                 else
                     ButtonDefaults.buttonColors()

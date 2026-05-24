@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,7 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 @Composable
 fun RecipeInputScreen(
     viewModel: RecommendationViewModel = viewModel(),
-    onExpandList: () -> Unit = {}
+    onExpandList: () -> Unit = {},
+    onPremadeClick: () -> Unit = {}
 ) {
     val recipes by viewModel.allRecipes.collectAsState()
     
@@ -52,10 +54,19 @@ fun RecipeInputScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = if (editingRecipe == null) "Create New Recipe" else "Edit Recipe",
-            style = MaterialTheme.typography.headlineMedium
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (editingRecipe == null) "Create New Recipe" else "Edit Recipe",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            IconButton(onClick = onPremadeClick) {
+                Icon(Icons.Default.Restaurant, contentDescription = "Premade Recipes")
+            }
+        }
 
         OutlinedTextField(
             value = recipeName,
@@ -92,7 +103,7 @@ fun RecipeInputScreen(
                         )
 
                         Row(
-                            modifier = Modifier.weight(1.2f),
+                            modifier = Modifier.weight(1.5f),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
@@ -111,7 +122,7 @@ fun RecipeInputScreen(
                             OutlinedTextField(
                                 value = item.second,
                                 onValueChange = { ingredients[index] = Triple(item.first, it, item.third) },
-                                label = { Text("Qty") },
+                                label = { Text("Q", maxLines = 1) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 modifier = Modifier.weight(1f),
                                 singleLine = true

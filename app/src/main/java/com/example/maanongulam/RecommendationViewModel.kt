@@ -75,6 +75,22 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    fun addIngredientIfMissing(name: String, unit: String, expirationDate: Long) {
+        viewModelScope.launch {
+            val existing = dao.getIngredientByName(name)
+            if (existing == null) {
+                dao.insertOrUpdateIngredient(
+                    IngredientEntity(
+                        name = name,
+                        quantity = 0.0,
+                        unit = unit,
+                        expirationDate = expirationDate
+                    )
+                )
+            }
+        }
+    }
+
     fun updateRecipe(recipe: RecipeEntity) {
         viewModelScope.launch {
             dao.insertRecipe(recipe)

@@ -16,6 +16,7 @@ sealed class Screen(val route: String, val label: String, val icon: @Composable 
     object AddRecipe : Screen("add_recipe", "New Recipe", { Icon(Icons.AutoMirrored.Filled.List, null) })
     object IngredientList : Screen("ingredient_list", "Full Inventory", { Icon(Icons.AutoMirrored.Filled.List, null) })
     object RecipeList : Screen("recipe_list", "All Recipes", { Icon(Icons.AutoMirrored.Filled.List, null) })
+    object PremadeRecipes : Screen("premade_recipes", "Premade", { Icon(Icons.Default.Restaurant, null) })
 }
 
 @Composable
@@ -58,10 +59,16 @@ fun MainScreen() {
                 IngredientInputScreen(onExpandList = { navController.navigate(Screen.IngredientList.route) }) 
             }
             composable(Screen.AddRecipe.route) { 
-                RecipeInputScreen(onExpandList = { navController.navigate(Screen.RecipeList.route) }) 
+                RecipeInputScreen(
+                    onExpandList = { navController.navigate(Screen.RecipeList.route) },
+                    onPremadeClick = { navController.navigate(Screen.PremadeRecipes.route) }
+                ) 
             }
             composable(Screen.IngredientList.route) { IngredientListScreen() }
             composable(Screen.RecipeList.route) { RecipeListScreen() }
+            composable(Screen.PremadeRecipes.route) { 
+                PremadeRecipesScreen(onRecipeAdded = { navController.popBackStack() }) 
+            }
         }
     }
 }

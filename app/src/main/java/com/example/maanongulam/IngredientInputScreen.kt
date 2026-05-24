@@ -35,11 +35,35 @@ fun IngredientInputScreen(
     val units = listOf("g", "kg", "ml", "L")
 
     var editingIngredient by remember { mutableStateOf<IngredientEntity?>(null) }
+    var isNonPerishable by remember { mutableStateOf(false) }
+    var shelfLifeDays by remember { mutableStateOf("") }
 
-    val datePickerState = rememberDatePickerState()
+    val datePickerState = rememberDatePickerState(
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                // Cannot select dates before today
+                val calendar = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                return utcTimeMillis >= calendar.timeInMillis
+            }
+        }
+    )
     var showDatePicker by remember { mutableStateOf(false) }
     val selectedDate = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
     val dateText = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(selectedDate))
+
+    // Automatically update date picker when shelfLifeDays changes
+    LaunchedEffect(shelfLifeDays) {
+        val days = shelfLifeDays.toLongOrNull()
+        if (days != null && days >= 0) {
+            val futureDate = System.currentTimeMillis() + (days * 24 * 60 * 60 * 1000L)
+            datePickerState.selectedDateMillis = futureDate
+        }
+    }
 
     // Update form when editingIngredient changes
     LaunchedEffect(editingIngredient) {
@@ -47,7 +71,12 @@ fun IngredientInputScreen(
             name = it.name
             quantity = it.quantity.toString()
             unit = it.unit
-            datePickerState.selectedDateMillis = it.expirationDate
+            if (it.expirationDate > 0) {
+                isNonPerishable = false
+                datePickerState.selectedDateMillis = it.expirationDate
+            } else {
+                isNonPerishable = true
+            }
         }
     }
 
@@ -133,11 +162,39 @@ fun IngredientInputScreen(
             }
         }
 
-        OutlinedButton(
-            onClick = { showDatePicker = true },
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Expiration Date: $dateText")
+            Checkbox(
+                checked = isNonPerishable,
+                onCheckedChange = { isNonPerishable = it }
+            )
+            Text("Non-perishable (No Expiry)")
+        }
+
+        if (!isNonPerishable) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = shelfLifeDays,
+                    onValueChange = { shelfLifeDays = it },
+                    label = { Text("Shelf Life (Days)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                
+                OutlinedButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.weight(1f).height(56.dp)
+                ) {
+                    Text(dateText, style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
 
         if (showDatePicker) {
@@ -164,6 +221,7 @@ fun IngredientInputScreen(
                         name = ""
                         quantity = ""
                         unit = "g"
+                        shelfLifeDays = ""
                     },
                     modifier = Modifier.weight(1f)
                 ) {
@@ -174,6 +232,7 @@ fun IngredientInputScreen(
             Button(
                 onClick = {
                     val qty = quantity.toDoubleOrNull() ?: 0.0
+                    val finalExpiration = if (isNonPerishable) 0L else selectedDate
                     val currentEdit = editingIngredient
                     if (currentEdit != null) {
                         viewModel.updateIngredient(
@@ -181,16 +240,18 @@ fun IngredientInputScreen(
                                 name = name,
                                 quantity = qty,
                                 unit = unit,
-                                expirationDate = selectedDate
+                                expirationDate = finalExpiration
                             )
                         )
                     } else {
-                        viewModel.addIngredient(name, qty, unit, selectedDate)
+                        viewModel.addIngredient(name, qty, unit, finalExpiration)
                     }
                     // Clear fields
                     name = ""
                     quantity = ""
                     unit = "g"
+                    isNonPerishable = false
+                    shelfLifeDays = ""
                     editingIngredient = null
                 },
                 modifier = Modifier.weight(1f),
@@ -233,10 +294,15 @@ fun IngredientInputScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(text = ingredient.name, fontWeight = FontWeight.Bold)
                             Text(text = "${ingredient.quantity} ${ingredient.unit}")
-                            val expiry = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-                                .format(Date(ingredient.expirationDate))
+                            val expiryText = if (ingredient.expirationDate > 0) {
+                                val expiry = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                                    .format(Date(ingredient.expirationDate))
+                                "Expires: $expiry"
+                            } else {
+                                "Non-perishable"
+                            }
                             Text(
-                                text = "Expires: $expiry",
+                                text = expiryText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.secondary
                             )

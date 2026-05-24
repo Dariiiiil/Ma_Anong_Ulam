@@ -34,7 +34,7 @@ object RecommendationEngine {
                     1.0 / (daysRemaining + 1.0)
                 }
             } else {
-                0.01 // Baseline urgency for items without a set expiration
+                0.0 // Non-perishables do not contribute to urgency score
             }
             
             val weight = ingredient.quantity

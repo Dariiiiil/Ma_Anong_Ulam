@@ -13,40 +13,46 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+
 @Composable
 fun PremadeRecipesScreen(
     viewModel: RecommendationViewModel = viewModel(),
     onRecipeAdded: () -> Unit = {}
 ) {
+    val myRecipes by viewModel.allRecipes.collectAsState()
+
     val premadeRecipes = listOf(
         Recipe("Sinigang na Baboy", listOf(
-            Ingredient("Pork", 500.0, "g", System.currentTimeMillis()),
-            Ingredient("Tamarind Mix", 1.0, "g", 0L),
-            Ingredient("Radish", 100.0, "g", System.currentTimeMillis()),
-            Ingredient("Eggplant", 100.0, "g", System.currentTimeMillis()),
-            Ingredient("String Beans", 50.0, "g", System.currentTimeMillis()),
-            Ingredient("Water", 1.5, "L", 0L)
+            Ingredient("Pork", 500.0, "g", System.currentTimeMillis(), "Meat"),
+            Ingredient("Tamarind Mix", 1.0, "g", 0L, "Spices"),
+            Ingredient("Radish", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
+            Ingredient("Eggplant", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
+            Ingredient("String Beans", 50.0, "g", System.currentTimeMillis(), "Vegetables"),
+            Ingredient("Water", 1.5, "L", 0L, "Others")
         )),
         Recipe("Chicken Curry", listOf(
-            Ingredient("Chicken", 500.0, "g", System.currentTimeMillis()),
-            Ingredient("Curry Powder", 20.0, "g", 0L),
-            Ingredient("Coconut Milk", 200.0, "ml", 0L),
-            Ingredient("Potato", 150.0, "g", System.currentTimeMillis()),
-            Ingredient("Carrot", 100.0, "g", System.currentTimeMillis())
+            Ingredient("Chicken", 500.0, "g", System.currentTimeMillis(), "Meat"),
+            Ingredient("Curry Powder", 20.0, "g", 0L, "Spices"),
+            Ingredient("Coconut Milk", 200.0, "ml", 0L, "Dairy"),
+            Ingredient("Potato", 150.0, "g", System.currentTimeMillis(), "Vegetables"),
+            Ingredient("Carrot", 100.0, "g", System.currentTimeMillis(), "Vegetables")
         )),
         Recipe("Pork Menudo", listOf(
-            Ingredient("Pork", 500.0, "g", System.currentTimeMillis()),
-            Ingredient("Tomato Sauce", 200.0, "ml", 0L),
-            Ingredient("Liver", 100.0, "g", System.currentTimeMillis()),
-            Ingredient("Potato", 100.0, "g", System.currentTimeMillis()),
-            Ingredient("Carrot", 100.0, "g", System.currentTimeMillis())
+            Ingredient("Pork", 500.0, "g", System.currentTimeMillis(), "Meat"),
+            Ingredient("Tomato Sauce", 200.0, "ml", 0L, "Spices"),
+            Ingredient("Liver", 100.0, "g", System.currentTimeMillis(), "Meat"),
+            Ingredient("Potato", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
+            Ingredient("Carrot", 100.0, "g", System.currentTimeMillis(), "Vegetables")
         )),
         Recipe("Beef Pares", listOf(
-            Ingredient("Beef", 500.0, "g", System.currentTimeMillis()),
-            Ingredient("Star Anise", 2.0, "g", 0L),
-            Ingredient("Soy Sauce", 100.0, "ml", 0L),
-            Ingredient("Sugar", 50.0, "g", 0L),
-            Ingredient("Garlic", 20.0, "g", 0L)
+            Ingredient("Beef", 500.0, "g", System.currentTimeMillis(), "Meat"),
+            Ingredient("Star Anise", 2.0, "g", 0L, "Spices"),
+            Ingredient("Soy Sauce", 100.0, "ml", 0L, "Spices"),
+            Ingredient("Sugar", 50.0, "g", 0L, "Spices"),
+            Ingredient("Garlic", 20.0, "g", 0L, "Vegetables")
         ))
     )
 
@@ -64,6 +70,8 @@ fun PremadeRecipesScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(premadeRecipes) { recipe ->
+                val alreadyExists = myRecipes.any { it.name.equals(recipe.name, ignoreCase = true) }
+                
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -80,14 +88,21 @@ fun PremadeRecipesScreen(
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        IconButton(onClick = { 
-                            viewModel.addRecipe(recipe.name, recipe.ingredients)
-                            recipe.ingredients.forEach { ing ->
-                                viewModel.addIngredientIfMissing(ing.name, ing.unit, ing.expirationDate)
-                            }
-                            onRecipeAdded()
-                        }) {
-                            Icon(Icons.Default.Add, contentDescription = "Add Premade")
+                        IconButton(
+                            onClick = { 
+                                viewModel.addRecipe(recipe.name, recipe.ingredients)
+                                recipe.ingredients.forEach { ing ->
+                                    viewModel.addIngredientIfMissing(ing.name, ing.unit, ing.expirationDate, ing.category)
+                                }
+                                onRecipeAdded()
+                            },
+                            enabled = !alreadyExists
+                        ) {
+                            Icon(
+                                imageVector = if (alreadyExists) Icons.Default.Check else Icons.Default.Add,
+                                contentDescription = if (alreadyExists) "Already Added" else "Add Premade",
+                                tint = if (alreadyExists) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                            )
                         }
                     }
                 }

@@ -14,13 +14,14 @@ class IngredientViewModel(application: Application) : AndroidViewModel(applicati
     val ingredients: StateFlow<List<IngredientEntity>> = dao.getAllIngredients()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addIngredient(name: String, quantity: Double, unit: String, expirationDate: Long) {
+    fun addIngredient(name: String, quantity: Double, unit: String, expirationDate: Long, category: String) {
         viewModelScope.launch {
             val entity = IngredientEntity(
                 name = name,
                 quantity = quantity,
                 unit = unit,
-                expirationDate = expirationDate
+                expirationDate = expirationDate,
+                category = category
             )
             dao.insertOrUpdateIngredient(entity)
         }
@@ -35,6 +36,12 @@ class IngredientViewModel(application: Application) : AndroidViewModel(applicati
     fun deleteIngredient(ingredient: IngredientEntity) {
         viewModelScope.launch {
             dao.deleteIngredient(ingredient)
+        }
+    }
+
+    fun deleteAllIngredients() {
+        viewModelScope.launch {
+            dao.deleteAllIngredients()
         }
     }
 }

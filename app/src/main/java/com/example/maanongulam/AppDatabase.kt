@@ -15,8 +15,8 @@ import kotlinx.coroutines.launch
  */
 @Database(
     entities = [IngredientEntity::class, RecipeEntity::class],
-    version = 4,
-    exportSchema = false
+    version = 5,
+    exportSchema = false,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -35,14 +35,14 @@ abstract class AppDatabase : RoomDatabase() {
                     "ma_anong_ulam_database"
                 )
                 .addCallback(AppDatabaseCallback())
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
                 INSTANCE = instance
                 instance
             }
         }
 
-        private class AppDatabaseCallback : RoomDatabase.Callback() {
+        private class AppDatabaseCallback : Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 super.onOpen(db)
                 INSTANCE?.let { database ->
@@ -61,12 +61,12 @@ abstract class AppDatabase : RoomDatabase() {
                 
                 // Default Ingredients with some initial quantity to test the score
                 val defaultIngredients = listOf(
-                    IngredientEntity(name = "Chicken", quantity = 1000.0, unit = "g", expirationDate = oneWeekFromNow),
-                    IngredientEntity(name = "Soy Sauce", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow),
-                    IngredientEntity(name = "Vinegar", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow),
-                    IngredientEntity(name = "Garlic", quantity = 100.0, unit = "g", expirationDate = oneWeekFromNow),
-                    IngredientEntity(name = "Peppercorns", quantity = 50.0, unit = "g", expirationDate = oneWeekFromNow),
-                    IngredientEntity(name = "Bay Leaves", quantity = 10.0, unit = "g", expirationDate = oneWeekFromNow)
+                    IngredientEntity(name = "Chicken", quantity = 1000.0, unit = "g", expirationDate = oneWeekFromNow, category = "Meat"),
+                    IngredientEntity(name = "Soy Sauce", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow, category = "Spices"),
+                    IngredientEntity(name = "Vinegar", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow, category = "Spices"),
+                    IngredientEntity(name = "Garlic", quantity = 100.0, unit = "g", expirationDate = oneWeekFromNow, category = "Vegetables"),
+                    IngredientEntity(name = "Peppercorns", quantity = 50.0, unit = "g", expirationDate = oneWeekFromNow, category = "Spices"),
+                    IngredientEntity(name = "Bay Leaves", quantity = 10.0, unit = "g", expirationDate = oneWeekFromNow, category = "Spices")
                 )
                 
                 defaultIngredients.forEach { dao.insertOrUpdateIngredient(it) }

@@ -7,10 +7,12 @@ package com.example.maanongulam
  * @property quantity The amount of the ingredient.
  * @property unit The unit of measurement (e.g., "g", "ml"). Defaults to "g".
  * @property expirationDate The expiration date represented as a timestamp (Long).
+ * @property category The category of the ingredient (e.g., "Meat", "Vegetables").
  */
 data class Ingredient(
     val name: String,
     val quantity: Double,
     val unit: String = "g",
-    val expirationDate: Long
+    val expirationDate: Long,
+    val category: String = "Others"
 )

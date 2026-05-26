@@ -29,7 +29,7 @@ fun MainScreen() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
                 
-                val items = listOf(Screen.Recommendation, Screen.AddIngredient, Screen.AddRecipe)
+                val items = listOf(Screen.Recommendation, Screen.AddIngredient, Screen.AddRecipe, Screen.PremadeRecipes)
                 items.forEach { screen ->
                     NavigationBarItem(
                         icon = screen.icon,
@@ -64,8 +64,12 @@ fun MainScreen() {
                     onPremadeClick = { navController.navigate(Screen.PremadeRecipes.route) }
                 ) 
             }
-            composable(Screen.IngredientList.route) { IngredientListScreen() }
-            composable(Screen.RecipeList.route) { RecipeListScreen() }
+            composable(Screen.IngredientList.route) {
+                IngredientListScreen(onBack = { navController.popBackStack() }) 
+            }
+            composable(Screen.RecipeList.route) { 
+                RecipeListScreen(onBack = { navController.popBackStack() }) 
+            }
             composable(Screen.PremadeRecipes.route) { 
                 PremadeRecipesScreen(onRecipeAdded = { navController.popBackStack() }) 
             }

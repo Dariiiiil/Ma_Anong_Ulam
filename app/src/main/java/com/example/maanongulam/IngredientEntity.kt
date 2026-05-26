@@ -12,7 +12,8 @@ data class IngredientEntity(
     val name: String,
     val quantity: Double,
     val unit: String = "g", // Defaults to grams (Philippine metric standard)
-    val expirationDate: Long
+    val expirationDate: Long,
+    val category: String = "Others"
 )
 
 /**
@@ -22,5 +23,6 @@ fun IngredientEntity.toDomainModel() = Ingredient(
     name = name,
     quantity = quantity,
     unit = unit,
-    expirationDate = expirationDate
+    expirationDate = expirationDate,
+    category = category
 )

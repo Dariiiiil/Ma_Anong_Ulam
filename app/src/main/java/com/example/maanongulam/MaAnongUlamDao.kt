@@ -23,6 +23,9 @@ interface MaAnongUlamDao {
     @Query("SELECT * FROM ingredients WHERE name = :name LIMIT 1")
     suspend fun getIngredientByName(name: String): IngredientEntity?
 
+    @Query("DELETE FROM ingredients")
+    suspend fun deleteAllIngredients()
+
     // --- Recipes ---
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -36,4 +39,7 @@ interface MaAnongUlamDao {
 
     @Query("SELECT * FROM recipes")
     suspend fun getAllRecipesSnapshot(): List<RecipeEntity>
+
+    @Query("DELETE FROM recipes")
+    suspend fun deleteAllRecipes()
 }

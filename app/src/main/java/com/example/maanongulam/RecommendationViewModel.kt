@@ -32,10 +32,14 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
             recipe.ingredients.forEach { needed ->
                 val current = dao.getIngredientByName(needed.name)
                 if (current == null) {
-                    shortages.add("❌ ${needed.name}: Missing entirely (Need ${needed.quantity}${needed.unit})")
+                    val neededDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
+                    shortages.add("❌ ${needed.name}: Missing entirely (Need $neededDisplay)")
                 } else if (!UnitConverter.isEnough(current.quantity, current.unit, needed.quantity, needed.unit)) {
                     val shortfall = UnitConverter.getShortfall(current.quantity, current.unit, needed.quantity, needed.unit)
-                    shortages.add("⚠️ ${needed.name}: Short by ${shortfall}${needed.unit} (Have ${current.quantity}${current.unit}, Need ${needed.quantity}${needed.unit})")
+                    val shortfallDisplay = UnitConverter.formatDisplay(shortfall, needed.unit)
+                    val haveDisplay = UnitConverter.formatDisplay(current.quantity, current.unit)
+                    val needDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
+                    shortages.add("⚠️ ${needed.name}: Short by $shortfallDisplay (Have $haveDisplay, Need $needDisplay)")
                 }
             }
 
@@ -55,7 +59,10 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                         current.quantity, current.unit, needed.quantity, needed.unit
                     )
                     dao.insertOrUpdateIngredient(current.copy(quantity = newQuantity))
-                    log.add("✅ ${needed.name}: Used ${needed.quantity}${needed.unit} (${newQuantity}${current.unit} remaining)")
+                    
+                    val usedDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
+                    val remainingDisplay = UnitConverter.formatDisplay(newQuantity, current.unit)
+                    log.add("✅ ${needed.name}: Used $usedDisplay ($remainingDisplay remaining)")
                 }
                 log.add("")
                 log.add("Enjoy your meal! Inventory updated.")
@@ -75,7 +82,7 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun addIngredientIfMissing(name: String, unit: String, expirationDate: Long) {
+    fun addIngredientIfMissing(name: String, unit: String, expirationDate: Long, category: String) {
         viewModelScope.launch {
             val existing = dao.getIngredientByName(name)
             if (existing == null) {
@@ -84,7 +91,8 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                         name = name,
                         quantity = 0.0,
                         unit = unit,
-                        expirationDate = expirationDate
+                        expirationDate = expirationDate,
+                        category = category
                     )
                 )
             }
@@ -100,6 +108,12 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     fun deleteRecipe(recipe: RecipeEntity) {
         viewModelScope.launch {
             dao.deleteRecipe(recipe)
+        }
+    }
+
+    fun deleteAllRecipes() {
+        viewModelScope.launch {
+            dao.deleteAllRecipes()
         }
     }
 }

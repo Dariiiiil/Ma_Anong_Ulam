@@ -1,5 +1,7 @@
 package com.example.maanongulam
 
+import java.util.Locale
+
 object UnitConverter {
     /**
      * Normalizes a quantity to its base unit (g or ml).
@@ -63,5 +65,25 @@ object UnitConverter {
         val neededBase = toBaseUnit(neededQty, neededUnit)
         val diffBase = (neededBase - currentBase).coerceAtLeast(0.0)
         return fromBaseUnit(diffBase, neededUnit)
+    }
+
+    /**
+     * Automatically scales units for display (e.g., 1200g -> 1.2kg).
+     */
+    fun formatDisplay(quantity: Double, unit: String): String {
+        val base = toBaseUnit(quantity, unit)
+        return when {
+            unit.lowercase() in listOf("g", "kg") && base >= 1000.0 -> {
+                val value = base / 1000.0
+                if (value == value.toInt().toDouble()) "${value.toInt()}kg" else "${String.format(Locale.getDefault(), "%.2f", value)}kg"
+            }
+            unit.lowercase() in listOf("ml", "l") && base >= 1000.0 -> {
+                val value = base / 1000.0
+                if (value == value.toInt().toDouble()) "${value.toInt()}L" else "${String.format(Locale.getDefault(), "%.2f", value)}L"
+            }
+            else -> {
+                if (quantity == quantity.toInt().toDouble()) "${quantity.toInt()}$unit" else "${String.format(Locale.getDefault(), "%.2f", quantity)}$unit"
+            }
+        }
     }
 }

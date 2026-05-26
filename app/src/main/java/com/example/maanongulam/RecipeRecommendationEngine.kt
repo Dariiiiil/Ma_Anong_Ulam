@@ -8,7 +8,8 @@ data class RecommendedRecipe(
     val urgencyScore: Double,
     val isInsufficient: Boolean,
     val reasons: List<String> = emptyList(),
-    val hasSpoiledIngredients: Boolean = false
+    val hasSpoiledIngredients: Boolean = false,
+    val missingIngredients: List<Ingredient> = emptyList()
 )
 
 /**
@@ -27,8 +28,9 @@ object RecipeRecommendationEngine {
         val currentTime = System.currentTimeMillis()
         
         return recipes.map { recipe ->
-            // 1. Check for ingredient sufficiency (Flagging)
-            val isInsufficient = checkInsufficiency(inventory, recipe)
+            // 1. Get missing ingredients
+            val missing = getMissingIngredients(inventory, recipe)
+            val isInsufficient = missing.isNotEmpty()
 
             // 2. Identify matching inventory items
             val recipeIngNames = recipe.ingredients.map { it.name.lowercase() }
@@ -81,33 +83,40 @@ object RecipeRecommendationEngine {
             }
 
             if (reasons.isEmpty()) {
-                if (!isInsufficient) {
+                if (missing.isEmpty()) {
                     reasons.add("✅ Ready to cook: All items in stock")
                 } else {
                     reasons.add("📝 Stock up soon for this recipe")
                 }
             }
 
-            RecommendedRecipe(recipe, score, isInsufficient, reasons, hasSpoiled)
+            RecommendedRecipe(recipe, score, isInsufficient, reasons, hasSpoiled, missing)
         }
         .sortedByDescending { it.urgencyScore }
-        .take(3)
     }
 
     /**
-     * Checks if the total available quantity of each required ingredient in inventory
-     * is less than the recipe's requirement.
+     * Identifies which ingredients are missing or insufficient and by how much.
      */
-    private fun checkInsufficiency(inventory: List<Ingredient>, recipe: Recipe): Boolean {
+    private fun getMissingIngredients(inventory: List<Ingredient>, recipe: Recipe): List<Ingredient> {
+        val missing = mutableListOf<Ingredient>()
         for (required in recipe.ingredients) {
-            val totalAvailable = inventory
+            val totalAvailableBase = inventory
                 .filter { it.name.equals(required.name, ignoreCase = true) }
                 .sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
             
-            if (totalAvailable < UnitConverter.toBaseUnit(required.quantity, required.unit)) {
-                return true
+            val requiredBase = UnitConverter.toBaseUnit(required.quantity, required.unit)
+            
+            if (totalAvailableBase < requiredBase) {
+                val diffBase = requiredBase - totalAvailableBase
+                missing.add(Ingredient(
+                    name = required.name,
+                    quantity = UnitConverter.fromBaseUnit(diffBase, required.unit),
+                    unit = required.unit,
+                    expirationDate = 0L
+                ))
             }
         }
-        return false
+        return missing
     }
 }

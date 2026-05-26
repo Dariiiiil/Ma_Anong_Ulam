@@ -42,4 +42,29 @@ interface MaAnongUlamDao {
 
     @Query("DELETE FROM recipes")
     suspend fun deleteAllRecipes()
+
+    // --- Cooking Logs ---
+
+    @Insert
+    suspend fun insertCookingLog(log: CookingLogEntity)
+
+    @Query("SELECT * FROM cooking_logs ORDER BY timestamp DESC")
+    fun getAllCookingLogs(): Flow<List<CookingLogEntity>>
+
+    @Query("DELETE FROM cooking_logs")
+    suspend fun deleteAllCookingLogs()
+
+    // --- Shopping List ---
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertShoppingItem(item: ShoppingItem)
+
+    @Query("SELECT * FROM shopping_list")
+    fun getAllShoppingItems(): Flow<List<ShoppingItem>>
+
+    @androidx.room.Delete
+    suspend fun deleteShoppingItem(item: ShoppingItem)
+
+    @Query("DELETE FROM shopping_list")
+    suspend fun deleteAllShoppingItems()
 }

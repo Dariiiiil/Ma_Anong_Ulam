@@ -14,7 +14,13 @@ class IngredientViewModel(application: Application) : AndroidViewModel(applicati
     val ingredients: StateFlow<List<IngredientEntity>> = dao.getAllIngredients()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addIngredient(name: String, quantity: Double, unit: String, expirationDate: Long, category: String) {
+    fun addIngredient(
+        name: String, 
+        quantity: Double, 
+        unit: String, 
+        expirationDate: Long, 
+        category: String
+    ) {
         viewModelScope.launch {
             val entity = IngredientEntity(
                 name = name,

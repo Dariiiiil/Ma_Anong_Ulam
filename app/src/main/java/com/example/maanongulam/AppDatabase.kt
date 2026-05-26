@@ -14,8 +14,8 @@ import kotlinx.coroutines.launch
  * Main database class for the Ma Anong Ulam application.
  */
 @Database(
-    entities = [IngredientEntity::class, RecipeEntity::class],
-    version = 5,
+    entities = [IngredientEntity::class, RecipeEntity::class, CookingLogEntity::class, ShoppingItem::class],
+    version = 9,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

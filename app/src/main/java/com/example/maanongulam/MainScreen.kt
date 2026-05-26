@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +18,7 @@ sealed class Screen(val route: String, val label: String, val icon: @Composable 
     object IngredientList : Screen("ingredient_list", "Full Inventory", { Icon(Icons.AutoMirrored.Filled.List, null) })
     object RecipeList : Screen("recipe_list", "All Recipes", { Icon(Icons.AutoMirrored.Filled.List, null) })
     object PremadeRecipes : Screen("premade_recipes", "Premade", { Icon(Icons.Default.Restaurant, null) })
+    object ShoppingList : Screen("shopping_list", "Shopping", { Icon(Icons.Default.ShoppingCart, null) })
 }
 
 @Composable
@@ -29,7 +31,7 @@ fun MainScreen() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
                 
-                val items = listOf(Screen.Recommendation, Screen.AddIngredient, Screen.AddRecipe, Screen.PremadeRecipes)
+                val items = listOf(Screen.Recommendation, Screen.AddIngredient, Screen.AddRecipe, Screen.PremadeRecipes, Screen.ShoppingList)
                 items.forEach { screen ->
                     NavigationBarItem(
                         icon = screen.icon,
@@ -72,6 +74,9 @@ fun MainScreen() {
             }
             composable(Screen.PremadeRecipes.route) { 
                 PremadeRecipesScreen(onRecipeAdded = { navController.popBackStack() }) 
+            }
+            composable(Screen.ShoppingList.route) { 
+                ShoppingListScreen()
             }
         }
     }

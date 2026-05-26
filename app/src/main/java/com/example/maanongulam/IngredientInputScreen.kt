@@ -83,6 +83,21 @@ fun IngredientInputScreen(
         }
     }
 
+    // Sync date picker with shelf life days
+    LaunchedEffect(shelfLifeDays) {
+        val days = shelfLifeDays.toLongOrNull()
+        if (days != null && days >= 0) {
+            val calendar = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+                add(Calendar.DAY_OF_YEAR, days.toInt())
+            }
+            datePickerState.selectedDateMillis = calendar.timeInMillis
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -361,7 +376,23 @@ fun IngredientInputScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = ingredient.name, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = ingredient.name, fontWeight = FontWeight.Bold)
+                                if (UnitConverter.isLowStock(ingredient.quantity, ingredient.unit)) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.errorContainer,
+                                        shape = MaterialTheme.shapes.extraSmall
+                                    ) {
+                                        Text(
+                                            text = "LOW",
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
                             Text(
                                 text = "${UnitConverter.formatDisplay(ingredient.quantity, ingredient.unit)} • ${ingredient.category}",
                                 style = MaterialTheme.typography.bodyMedium

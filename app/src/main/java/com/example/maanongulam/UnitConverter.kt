@@ -51,6 +51,14 @@ object UnitConverter {
     ): Boolean {
         return toBaseUnit(currentQty, currentUnit) >= toBaseUnit(neededQty, neededUnit)
     }
+
+    /**
+     * Checks if the quantity is considered "low stock".
+     * Threshold is 100 units in base (100g or 100ml).
+     */
+    fun isLowStock(quantity: Double, unit: String): Boolean {
+        return toBaseUnit(quantity, unit) <= 100.0 && toBaseUnit(quantity, unit) > 0
+    }
     
     /**
      * Calculates the shortfall in the needed unit's scale.

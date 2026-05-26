@@ -12,8 +12,14 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     val allRecipes: StateFlow<List<RecipeEntity>> = dao.getAllRecipes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
+    val allIngredients: StateFlow<List<IngredientEntity>> = dao.getAllIngredients()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allCookingLogs: StateFlow<List<CookingLogEntity>> = dao.getAllCookingLogs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val recommendations: StateFlow<List<RecommendedRecipe>> = combine(
-        dao.getAllIngredients().map { entities -> entities.map { it.toDomainModel() } },
+        allIngredients.map { entities -> entities.map { it.toDomainModel() } },
         allRecipes.map { entities -> entities.map { it.toDomainModel() } }
     ) { inventory, recipes ->
         if (inventory.isEmpty() || recipes.isEmpty()) emptyList()
@@ -66,6 +72,9 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                 }
                 log.add("")
                 log.add("Enjoy your meal! Inventory updated.")
+                
+                // Add to persistent history
+                dao.insertCookingLog(CookingLogEntity(recipeName = recipe.name, timestamp = System.currentTimeMillis()))
             }
 
             _cookingLog.value = log
@@ -114,6 +123,52 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     fun deleteAllRecipes() {
         viewModelScope.launch {
             dao.deleteAllRecipes()
+        }
+    }
+
+    fun deleteAllCookingLogs() {
+        viewModelScope.launch {
+            dao.deleteAllCookingLogs()
+        }
+    }
+
+    fun addMissingToShoppingList(missing: List<Ingredient>) {
+        viewModelScope.launch {
+            missing.forEach { item ->
+                dao.insertShoppingItem(
+                    ShoppingItem(
+                        name = item.name,
+                        quantity = item.quantity,
+                        unit = item.unit
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Algorithm to automatically scan inventory and add low-stock items 
+     * to the shopping list if they have 'autoAddToShoppingList' enabled.
+     */
+    fun runAutoRestockCheck() {
+        viewModelScope.launch {
+            val currentShoppingList = dao.getAllShoppingItems().first().map { it.name.lowercase() }
+            
+            // Automatically add missing items for the "Ulam of the Day"
+            val topRecommendation = recommendations.value.firstOrNull()
+            if (topRecommendation != null && topRecommendation.isInsufficient) {
+                topRecommendation.missingIngredients.forEach { missing ->
+                    if (missing.name.lowercase() !in currentShoppingList) {
+                        dao.insertShoppingItem(
+                            ShoppingItem(
+                                name = missing.name,
+                                quantity = missing.quantity,
+                                unit = missing.unit
+                            )
+                        )
+                    }
+                }
+            }
         }
     }
 }

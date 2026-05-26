@@ -22,7 +22,7 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 
-enum class SortType { NAME, CATEGORY, EXPIRY }
+enum class SortType { NAME, CATEGORY, EXPIRY, STOCK }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,6 +111,15 @@ fun IngredientListScreen(
                                         }
                                     }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Sort by Stock Level") },
+                                    onClick = { sortType = SortType.STOCK; showSortMenu = false },
+                                    trailingIcon = {
+                                        if (sortType == SortType.STOCK) {
+                                            Icon(Icons.Default.Check, contentDescription = null)
+                                        }
+                                    }
+                                )
                                 HorizontalDivider()
                                 DropdownMenuItem(
                                     text = { Text(if (isAscending) "Ascending" else "Descending") },
@@ -159,6 +168,9 @@ fun IngredientListScreen(
                     SortType.EXPIRY -> filtered.sortedBy { 
                         if (it.expirationDate == 0L) Long.MAX_VALUE else it.expirationDate 
                     }
+                    SortType.STOCK -> filtered.sortedBy { 
+                        UnitConverter.toBaseUnit(it.quantity, it.unit)
+                    }
                 }
                 if (isAscending) sorted else sorted.reversed()
             }
@@ -172,6 +184,7 @@ fun IngredientListScreen(
                     SortType.NAME -> "Name"
                     SortType.CATEGORY -> "Category"
                     SortType.EXPIRY -> "Expiry"
+                    SortType.STOCK -> "Stock Level"
                 }
                 val orderLabel = if (isAscending) "↑" else "↓"
                 
@@ -211,7 +224,23 @@ fun IngredientListScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(text = ingredient.name, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = ingredient.name, fontWeight = FontWeight.Bold)
+                                    if (UnitConverter.isLowStock(ingredient.quantity, ingredient.unit)) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.errorContainer,
+                                            shape = MaterialTheme.shapes.extraSmall
+                                        ) {
+                                            Text(
+                                                text = "LOW STOCK",
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                }
                                 Text(
                                     text = "${UnitConverter.formatDisplay(ingredient.quantity, ingredient.unit)} • ${ingredient.category}",
                                     style = MaterialTheme.typography.bodyMedium

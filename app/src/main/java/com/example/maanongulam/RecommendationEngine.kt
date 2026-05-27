@@ -24,24 +24,24 @@ object RecommendationEngine {
             // Calculate urgency based on time remaining until expiration
             val remainingMs = ingredient.expirationDate - currentTime
             
-            val value = if (ingredient.expirationDate > 0) {
+            val urgencyPerUnit = if (ingredient.expirationDate > 0) {
                 val daysRemaining = remainingMs.toDouble() / (1000 * 60 * 60 * 24)
                 if (daysRemaining <= 0) {
                     10.0 // Already expired or expires today: High urgency
                 } else {
                     // Urgency decreases as days remaining increases.
-                    // e.g., 1 day left -> 0.5, 9 days left -> 0.1
-                    (1.0 / (daysRemaining + 1.0)) + 0.02 // Add base value for "having it"
+                    (1.0 / (daysRemaining + 1.0)) + 0.02
                 }
             } else {
                 0.02 // Non-perishables contribute a base "availability" score
             }
             
             val weight = ingredient.quantity
-            // Ratio determines priority in the knapsack
-            val ratio = if (weight > 0) value / weight else 0.0
+            // Total value is urgency * quantity. Ratio (value/weight) is just urgencyPerUnit.
+            val totalValue = urgencyPerUnit * weight
+            val ratio = urgencyPerUnit
             
-            KnapsackItem(value, weight, ratio)
+            KnapsackItem(totalValue, weight, ratio)
         }
 
         // 2. Sort ingredients based on ratio in descending order

@@ -36,7 +36,7 @@ fun IngredientInputScreen(
     var quantity by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("g") }
     var expanded by remember { mutableStateOf(false) }
-    val units = listOf("g", "kg", "ml", "L")
+    val units = listOf("g", "kg", "ml", "L", "tsp", "tbsp", "cup", "pcs", "pack")
 
     var category by remember { mutableStateOf("Others") }
     var categoryExpanded by remember { mutableStateOf(false) }

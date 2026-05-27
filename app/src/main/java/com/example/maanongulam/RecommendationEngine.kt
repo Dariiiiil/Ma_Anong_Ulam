@@ -31,10 +31,10 @@ object RecommendationEngine {
                 } else {
                     // Urgency decreases as days remaining increases.
                     // e.g., 1 day left -> 0.5, 9 days left -> 0.1
-                    1.0 / (daysRemaining + 1.0)
+                    (1.0 / (daysRemaining + 1.0)) + 0.02 // Add base value for "having it"
                 }
             } else {
-                0.0 // Non-perishables do not contribute to urgency score
+                0.02 // Non-perishables contribute a base "availability" score
             }
             
             val weight = ingredient.quantity

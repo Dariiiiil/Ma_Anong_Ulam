@@ -5,9 +5,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class RecommendationViewModel(application: Application) : AndroidViewModel(application) {
-    private val dao = AppDatabase.getDatabase(application).maAnongUlamDao()
+    private val database = AppDatabase.getDatabase(application)
+    private val dao = database.maAnongUlamDao()
 
     val allRecipes: StateFlow<List<RecipeEntity>> = dao.getAllRecipes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -22,152 +26,142 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
         allIngredients.map { entities -> entities.map { it.toDomainModel() } },
         allRecipes.map { entities -> entities.map { it.toDomainModel() } }
     ) { inventory, recipes ->
-        if (inventory.isEmpty() || recipes.isEmpty()) emptyList()
-        else RecipeRecommendationEngine.recommendTopRecipes(inventory, recipes)
+        if (inventory.isEmpty() || recipes.isEmpty()) emptyList<RecommendedRecipe>()
+        else {
+            withContext(Dispatchers.Default) {
+                RecipeRecommendationEngine.recommendTopRecipes(inventory, recipes)
+            }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _cookingLog = MutableStateFlow<List<String>?>(null)
     val cookingLog: StateFlow<List<String>?> = _cookingLog.asStateFlow()
 
+    private val _pendingShoppingDuplicates = MutableStateFlow<List<Pair<ShoppingItem, Ingredient>>?>(null)
+    val pendingShoppingDuplicates: StateFlow<List<Pair<ShoppingItem, Ingredient>>?> = _pendingShoppingDuplicates.asStateFlow()
+
     fun cookRecipe(recipe: Recipe) {
         viewModelScope.launch {
             val log = mutableListOf<String>()
             val shortages = mutableListOf<String>()
-            
-            // 1. First, check if we have enough of EVERYTHING (with unit conversion)
+            val ingredientsToDeduct = mutableMapOf<String, List<Pair<IngredientEntity, Double>>>()
+
             recipe.ingredients.forEach { needed ->
-                val current = dao.getIngredientByName(needed.name)
-                if (current == null) {
-                    val neededDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
-                    shortages.add("❌ ${needed.name}: Missing entirely (Need $neededDisplay)")
-                } else if (!UnitConverter.isEnough(current.quantity, current.unit, needed.quantity, needed.unit)) {
-                    val shortfall = UnitConverter.getShortfall(current.quantity, current.unit, needed.quantity, needed.unit)
-                    val shortfallDisplay = UnitConverter.formatDisplay(shortfall, needed.unit)
-                    val haveDisplay = UnitConverter.formatDisplay(current.quantity, current.unit)
-                    val needDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
-                    shortages.add("⚠️ ${needed.name}: Short by $shortfallDisplay (Have $haveDisplay, Need $needDisplay)")
+                val matchingBatches = dao.getIngredientsByName(needed.name.trim())
+                val totalAvailableBase = matchingBatches.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
+                val neededBase = UnitConverter.toBaseUnit(needed.quantity, needed.unit)
+
+                if (totalAvailableBase < neededBase) {
+                    val shortfallBase = neededBase - totalAvailableBase
+                    val shortfallDisplay = UnitConverter.formatDisplay(UnitConverter.fromBaseUnit(shortfallBase, needed.unit), needed.unit)
+                    shortages.add("❌ ${needed.name}: Short by $shortfallDisplay")
+                } else {
+                    val sortedBatches = matchingBatches.sortedWith(compareBy<IngredientEntity> { it.expirationDate == 0L }.thenBy { it.expirationDate })
+                    var remainingToDeductBase = neededBase
+                    val plannedDeductions = mutableListOf<Pair<IngredientEntity, Double>>()
+                    for (batch in sortedBatches) {
+                        if (remainingToDeductBase <= 0) break
+                        val batchBase = UnitConverter.toBaseUnit(batch.quantity, batch.unit)
+                        val deductFromThisBatchBase = minOf(batchBase, remainingToDeductBase)
+                        val deductInOriginalUnit = UnitConverter.fromBaseUnit(deductFromThisBatchBase, batch.unit)
+                        plannedDeductions.add(batch to deductInOriginalUnit)
+                        remainingToDeductBase -= deductFromThisBatchBase
+                    }
+                    ingredientsToDeduct[needed.name] = plannedDeductions
                 }
             }
 
             if (shortages.isNotEmpty()) {
-                // 2a. If anything is missing, STOP and don't change the database
                 log.add("Cannot cook ${recipe.name}!")
-                log.add("Your inventory is missing some items:")
                 log.addAll(shortages)
-                log.add("")
-                log.add("Inventory was NOT updated. Please add more ingredients.")
+                log.add("\nInventory was NOT updated.")
             } else {
-                // 2b. If everything is sufficient, proceed with cooking
                 log.add("Cooking ${recipe.name}...")
-                recipe.ingredients.forEach { needed ->
-                    val current = dao.getIngredientByName(needed.name)!!
-                    val newQuantity = UnitConverter.calculateRemaining(
-                        current.quantity, current.unit, needed.quantity, needed.unit
-                    )
-                    dao.insertOrUpdateIngredient(current.copy(quantity = newQuantity))
-                    
-                    val usedDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
-                    val remainingDisplay = UnitConverter.formatDisplay(newQuantity, current.unit)
-                    log.add("✅ ${needed.name}: Used $usedDisplay ($remainingDisplay remaining)")
+                database.withTransaction {
+                    ingredientsToDeduct.forEach { (name, deductions) ->
+                        var totalUsedInNeededUnit = 0.0
+                        val neededUnit = recipe.ingredients.first { it.name.equals(name, true) }.unit
+                        deductions.forEach { (entity, amountToDeduct) ->
+                            val newQty = (entity.quantity - amountToDeduct).coerceAtLeast(0.0)
+                            if (newQty <= 0.001) dao.deleteIngredient(entity)
+                            else dao.insertOrUpdateIngredient(entity.copy(quantity = newQty))
+                            totalUsedInNeededUnit += UnitConverter.fromBaseUnit(UnitConverter.toBaseUnit(amountToDeduct, entity.unit), neededUnit)
+                        }
+                        log.add("✅ $name: Used ${UnitConverter.formatDisplay(totalUsedInNeededUnit, neededUnit)}")
+                    }
+                    dao.insertCookingLog(CookingLogEntity(recipeName = recipe.name, timestamp = System.currentTimeMillis()))
                 }
-                log.add("")
-                log.add("Enjoy your meal! Inventory updated.")
-                
-                // Add to persistent history
-                dao.insertCookingLog(CookingLogEntity(recipeName = recipe.name, timestamp = System.currentTimeMillis()))
+                log.add("\nEnjoy your meal! Inventory updated.")
             }
-
             _cookingLog.value = log
         }
     }
 
-    fun clearCookingLog() {
-        _cookingLog.value = null
-    }
+    fun clearCookingLog() { _cookingLog.value = null }
 
     fun addRecipe(name: String, ingredients: List<Ingredient>) {
         viewModelScope.launch {
-            dao.insertRecipe(RecipeEntity(name = name, ingredients = ingredients))
+            val normalizedIngredients = ingredients.map { it.copy(name = it.name.trim()) }
+            dao.insertRecipe(RecipeEntity(name = name.trim(), ingredients = normalizedIngredients))
         }
     }
 
     fun addIngredientIfMissing(name: String, unit: String, expirationDate: Long, category: String) {
         viewModelScope.launch {
-            val existing = dao.getIngredientByName(name)
-            if (existing == null) {
-                dao.insertOrUpdateIngredient(
-                    IngredientEntity(
-                        name = name,
-                        quantity = 0.0,
-                        unit = unit,
-                        expirationDate = expirationDate,
-                        category = category
-                    )
-                )
+            val normalizedName = name.trim()
+            if (dao.getIngredientByName(normalizedName) == null) {
+                dao.insertOrUpdateIngredient(IngredientEntity(name = normalizedName, quantity = 0.0, unit = unit, expirationDate = expirationDate, category = category))
             }
         }
     }
 
     fun updateRecipe(recipe: RecipeEntity) {
         viewModelScope.launch {
-            dao.insertRecipe(recipe)
+            val normalizedRecipe = recipe.copy(name = recipe.name.trim(), ingredients = recipe.ingredients.map { it.copy(name = it.name.trim()) })
+            dao.insertRecipe(normalizedRecipe)
         }
     }
 
-    fun deleteRecipe(recipe: RecipeEntity) {
-        viewModelScope.launch {
-            dao.deleteRecipe(recipe)
-        }
-    }
-
-    fun deleteAllRecipes() {
-        viewModelScope.launch {
-            dao.deleteAllRecipes()
-        }
-    }
-
-    fun deleteAllCookingLogs() {
-        viewModelScope.launch {
-            dao.deleteAllCookingLogs()
-        }
-    }
+    fun deleteRecipe(recipe: RecipeEntity) { viewModelScope.launch { dao.deleteRecipe(recipe) } }
+    fun deleteAllRecipes() { viewModelScope.launch { dao.deleteAllRecipes() } }
+    fun deleteAllCookingLogs() { viewModelScope.launch { dao.deleteAllCookingLogs() } }
 
     fun addMissingToShoppingList(missing: List<Ingredient>) {
         viewModelScope.launch {
+            val duplicates = mutableListOf<Pair<ShoppingItem, Ingredient>>()
+            val newItems = mutableListOf<Ingredient>()
             missing.forEach { item ->
-                dao.insertShoppingItem(
-                    ShoppingItem(
-                        name = item.name,
-                        quantity = item.quantity,
-                        unit = item.unit
-                    )
-                )
+                val existing = dao.getShoppingItemByName(item.name)
+                if (existing != null) duplicates.add(existing to item)
+                else newItems.add(item)
             }
+            newItems.forEach { item ->
+                dao.insertShoppingItem(ShoppingItem(name = item.name, quantity = item.quantity, unit = item.unit))
+            }
+            if (duplicates.isNotEmpty()) _pendingShoppingDuplicates.value = duplicates
         }
     }
 
-    /**
-     * Algorithm to automatically scan inventory and add low-stock items 
-     * to the shopping list if they have 'autoAddToShoppingList' enabled.
-     */
+    fun confirmShoppingDuplicates(merge: Boolean) {
+        val pending = _pendingShoppingDuplicates.value ?: return
+        viewModelScope.launch {
+            if (merge) {
+                pending.forEach { (existing, newItem) ->
+                    val totalBase = UnitConverter.toBaseUnit(existing.quantity, existing.unit) + UnitConverter.toBaseUnit(newItem.quantity, newItem.unit)
+                    dao.insertShoppingItem(existing.copy(quantity = UnitConverter.fromBaseUnit(totalBase, existing.unit)))
+                }
+            }
+            _pendingShoppingDuplicates.value = null
+        }
+    }
+
+    fun dismissShoppingDuplicates() { _pendingShoppingDuplicates.value = null }
+
     fun runAutoRestockCheck() {
         viewModelScope.launch {
-            val currentShoppingList = dao.getAllShoppingItems().first().map { it.name.lowercase() }
-            
-            // Automatically add missing items for the "Ulam of the Day"
             val topRecommendation = recommendations.value.firstOrNull()
             if (topRecommendation != null && topRecommendation.isInsufficient) {
-                topRecommendation.missingIngredients.forEach { missing ->
-                    if (missing.name.lowercase() !in currentShoppingList) {
-                        dao.insertShoppingItem(
-                            ShoppingItem(
-                                name = missing.name,
-                                quantity = missing.quantity,
-                                unit = missing.unit
-                            )
-                        )
-                    }
-                }
+                addMissingToShoppingList(topRecommendation.missingIngredients)
             }
         }
     }

@@ -14,7 +14,7 @@ import androidx.navigation.compose.*
 sealed class Screen(val route: String, val label: String, val icon: @Composable () -> Unit) {
     object Recommendation : Screen("recommendation", "Ulam", { Icon(Icons.Default.Restaurant, null) })
     object AddIngredient : Screen("add_ingredient", "Inventory", { Icon(Icons.Default.Add, null) })
-    object AddRecipe : Screen("add_recipe", "New Recipe", { Icon(Icons.AutoMirrored.Filled.List, null) })
+    object AddRecipe : Screen("add_recipe", "Recipe", { Icon(Icons.AutoMirrored.Filled.List, null) })
     object IngredientList : Screen("ingredient_list", "Full Inventory", { Icon(Icons.AutoMirrored.Filled.List, null) })
     object RecipeList : Screen("recipe_list", "All Recipes", { Icon(Icons.AutoMirrored.Filled.List, null) })
     object PremadeRecipes : Screen("premade_recipes", "Premade", { Icon(Icons.Default.Restaurant, null) })

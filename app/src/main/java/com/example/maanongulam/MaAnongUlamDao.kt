@@ -20,7 +20,10 @@ interface MaAnongUlamDao {
     @Query("SELECT * FROM ingredients")
     fun getAllIngredients(): Flow<List<IngredientEntity>>
 
-    @Query("SELECT * FROM ingredients WHERE name = :name LIMIT 1")
+    @Query("SELECT * FROM ingredients WHERE LOWER(name) = LOWER(:name)")
+    suspend fun getIngredientsByName(name: String): List<IngredientEntity>
+
+    @Query("SELECT * FROM ingredients WHERE LOWER(name) = LOWER(:name) LIMIT 1")
     suspend fun getIngredientByName(name: String): IngredientEntity?
 
     @Query("DELETE FROM ingredients")
@@ -59,12 +62,12 @@ interface MaAnongUlamDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertShoppingItem(item: ShoppingItem)
 
+    @Query("SELECT * FROM shopping_list WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getShoppingItemByName(name: String): ShoppingItem?
+
     @Query("SELECT * FROM shopping_list")
     fun getAllShoppingItems(): Flow<List<ShoppingItem>>
 
     @androidx.room.Delete
     suspend fun deleteShoppingItem(item: ShoppingItem)
-
-    @Query("DELETE FROM shopping_list")
-    suspend fun deleteAllShoppingItems()
 }

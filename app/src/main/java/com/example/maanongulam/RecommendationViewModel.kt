@@ -33,47 +33,75 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             val log = mutableListOf<String>()
             val shortages = mutableListOf<String>()
+            val currentTime = System.currentTimeMillis()
+            val inventoryEntities = dao.getAllIngredients().first()
+            val expirationBuffer = 60000L
             
-            // 1. First, check if we have enough of EVERYTHING (with unit conversion)
-            recipe.ingredients.forEach { needed ->
-                val current = dao.getIngredientByName(needed.name)
-                if (current == null) {
-                    val neededDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
-                    shortages.add("❌ ${needed.name}: Missing entirely (Need $neededDisplay)")
-                } else if (!UnitConverter.isEnough(current.quantity, current.unit, needed.quantity, needed.unit)) {
-                    val shortfall = UnitConverter.getShortfall(current.quantity, current.unit, needed.quantity, needed.unit)
+            // 1. Check total usable quantity across all batches using robust normalization
+            val recipeRequirements = recipe.ingredients.map { needed ->
+                val normalizedNeededName = needed.name.replace("\\s".toRegex(), "").lowercase()
+                val matchingBatches = inventoryEntities.filter { 
+                    it.name.replace("\\s".toRegex(), "").lowercase() == normalizedNeededName 
+                }
+                
+                // Only use non-spoiled batches
+                val usableBatches = matchingBatches.filter { 
+                    it.expirationDate == 0L || (it.expirationDate + expirationBuffer) >= currentTime 
+                }
+                
+                val totalAvailableBase = usableBatches.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
+                val neededBase = UnitConverter.toBaseUnit(needed.quantity, needed.unit)
+                
+                Triple(needed, usableBatches, totalAvailableBase >= (neededBase - 0.01))
+            }
+
+            recipeRequirements.forEach { (needed, usableBatches, isSufficient) ->
+                if (!isSufficient) {
+                    val totalAvailableBase = usableBatches.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
+                    val shortfall = UnitConverter.getShortfall(totalAvailableBase, "g", needed.quantity, needed.unit)
                     val shortfallDisplay = UnitConverter.formatDisplay(shortfall, needed.unit)
-                    val haveDisplay = UnitConverter.formatDisplay(current.quantity, current.unit)
-                    val needDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
-                    shortages.add("⚠️ ${needed.name}: Short by $shortfallDisplay (Have $haveDisplay, Need $needDisplay)")
+                    shortages.add("⚠️ ${needed.name}: Short by $shortfallDisplay")
                 }
             }
 
             if (shortages.isNotEmpty()) {
-                // 2a. If anything is missing, STOP and don't change the database
                 log.add("Cannot cook ${recipe.name}!")
-                log.add("Your inventory is missing some items:")
                 log.addAll(shortages)
-                log.add("")
-                log.add("Inventory was NOT updated. Please add more ingredients.")
+                log.add("Inventory was NOT updated.")
             } else {
-                // 2b. If everything is sufficient, proceed with cooking
                 log.add("Cooking ${recipe.name}...")
-                recipe.ingredients.forEach { needed ->
-                    val current = dao.getIngredientByName(needed.name)!!
-                    val newQuantity = UnitConverter.calculateRemaining(
-                        current.quantity, current.unit, needed.quantity, needed.unit
-                    )
-                    dao.insertOrUpdateIngredient(current.copy(quantity = newQuantity))
+                recipeRequirements.forEach { (needed, usableBatches, _) ->
+                    var remainingToDeductBase = UnitConverter.toBaseUnit(needed.quantity, needed.unit)
+                    var totalDeductedBase = 0.0
+                    var batchesUsedCount = 0
                     
-                    val usedDisplay = UnitConverter.formatDisplay(needed.quantity, needed.unit)
-                    val remainingDisplay = UnitConverter.formatDisplay(newQuantity, current.unit)
-                    log.add("✅ ${needed.name}: Used $usedDisplay ($remainingDisplay remaining)")
+                    val sortedBatches = usableBatches.sortedWith(compareBy<IngredientEntity> { 
+                        if (it.expirationDate == 0L) Long.MAX_VALUE else it.expirationDate 
+                    })
+
+                    for (batch in sortedBatches) {
+                        if (remainingToDeductBase <= 0.005) break
+                        
+                        val batchQtyBase = UnitConverter.toBaseUnit(batch.quantity, batch.unit)
+                        batchesUsedCount++
+                        
+                        if (batchQtyBase <= (remainingToDeductBase + 0.005)) {
+                            totalDeductedBase += batchQtyBase
+                            remainingToDeductBase -= batchQtyBase
+                            dao.deleteIngredient(batch)
+                        } else {
+                            totalDeductedBase += remainingToDeductBase
+                            val newQtyBase = batchQtyBase - remainingToDeductBase
+                            val newQtyOriginalUnit = UnitConverter.fromBaseUnit(newQtyBase, batch.unit)
+                            dao.insertOrUpdateIngredient(batch.copy(quantity = newQtyOriginalUnit))
+                            remainingToDeductBase = 0.0
+                        }
+                    }
+                    
+                    val batchSuffix = if (batchesUsedCount > 1) " (from $batchesUsedCount batches)" else ""
+                    log.add("✅ ${needed.name}: Used ${UnitConverter.formatDisplay(UnitConverter.fromBaseUnit(totalDeductedBase, needed.unit), needed.unit)}$batchSuffix")
                 }
-                log.add("")
                 log.add("Enjoy your meal! Inventory updated.")
-                
-                // Add to persistent history
                 dao.insertCookingLog(CookingLogEntity(recipeName = recipe.name, timestamp = System.currentTimeMillis()))
             }
 

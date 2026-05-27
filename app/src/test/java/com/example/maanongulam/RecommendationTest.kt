@@ -48,13 +48,16 @@ class RecommendationTest {
         val recommendations = RecipeRecommendationEngine.recommendTopRecipes(inventory, listOf(recipe))
         val score = recommendations[0].urgencyScore
 
-        // Expected score: Value * (Capacity / InventoryWeight) = 0.5 * (50 / 100) = 0.25
-        assertEquals("Score should be exactly 50% of the single ingredient urgency value", 0.25, score, 0.05)
+        // Expected score: (UrgencyPerUnit * InventoryWeight) * (Capacity / InventoryWeight)
+        // UrgencyPerUnit = 1.0 / (1.0 + 1.0) = 0.5
+        // Capacity = 50.0
+        // Score = 0.5 * 50.0 = 25.0
+        assertEquals("Score should be UrgencyPerUnit * quantity used", 25.0, score, 0.05)
     }
 
     @Test
     fun testInsufficientQuantityFlag() {
-        val inventory = listOf(Ingredient("Egg", 1.0, "pcs", 1000L)) // 1 Egg
+        val inventory = listOf(Ingredient("Egg", 1.0, "pcs", 0L)) // 1 Egg (non-perishable for test)
         
         // Recipe needs 2 Eggs
         val recipe = Recipe("Omelet", listOf(Ingredient("Egg", 2.0, "pcs", 0L)))
@@ -64,7 +67,7 @@ class RecommendationTest {
         assertTrue("Recipe should be flagged as insufficient", recommendations[0].isInsufficient)
         
         // Test sufficient case
-        val sufficientInventory = listOf(Ingredient("Egg", 3.0, "pcs", 1000L))
+        val sufficientInventory = listOf(Ingredient("Egg", 3.0, "pcs", 0L))
         val recommendationsSufficient = RecipeRecommendationEngine.recommendTopRecipes(sufficientInventory, listOf(recipe))
         
         assertFalse("Recipe should NOT be flagged as insufficient", recommendationsSufficient[0].isInsufficient)

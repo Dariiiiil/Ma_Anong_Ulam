@@ -21,10 +21,10 @@ object RecommendationEngine {
         
         // 1. Calculate the value-to-weight ratio (Urgency Density)
         val itemsWithDensity = ingredientsList.map { ingredient ->
-            // Calculate urgency based on time remaining until expiration
+            // Calculate urgency per unit based on time remaining until expiration
             val remainingMs = ingredient.expirationDate - currentTime
             
-            val value = if (ingredient.expirationDate > 0) {
+            val urgencyPerUnit = if (ingredient.expirationDate > 0) {
                 val daysRemaining = remainingMs.toDouble() / (1000 * 60 * 60 * 24)
                 if (daysRemaining <= 0) {
                     10.0 // Already expired or expires today: High urgency
@@ -38,10 +38,12 @@ object RecommendationEngine {
             }
             
             val weight = ingredient.quantity
-            // Ratio determines priority in the knapsack
-            val ratio = if (weight > 0) value / weight else 0.0
+            // Total value of this batch is urgency * quantity
+            val totalValue = urgencyPerUnit * weight
+            // Ratio is exactly urgencyPerUnit
+            val ratio = urgencyPerUnit
             
-            KnapsackItem(value, weight, ratio)
+            KnapsackItem(totalValue, weight, ratio)
         }
 
         // 2. Sort ingredients based on ratio in descending order

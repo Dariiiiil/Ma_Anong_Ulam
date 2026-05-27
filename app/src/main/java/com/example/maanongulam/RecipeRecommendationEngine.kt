@@ -29,22 +29,53 @@ object RecipeRecommendationEngine {
         
         return recipes.map { recipe ->
             // 1. Get missing ingredients
-            val missing = getMissingIngredients(inventory, recipe)
+            val missing = getMissingIngredients(inventory, recipe, currentTime)
             val isInsufficient = missing.isNotEmpty()
 
-            // 2. Identify matching inventory items
-            val recipeIngNames = recipe.ingredients.map { it.name.lowercase() }
-            val matchingInvItems = inventory.filter { it.name.lowercase() in recipeIngNames }
+            // 2. Identify matching inventory items (Robust matching)
+            val expirationBuffer = 60000L
+            val recipeIngNamesNorm = recipe.ingredients.map { it.name.replace("\\s".toRegex(), "").lowercase() }
+            val matchingInvItems = inventory.filter { it.name.replace("\\s".toRegex(), "").lowercase() in recipeIngNamesNorm }
 
             // 3. Safety Check: Does it use spoiled ingredients?
-            // An item is spoiled if it has an expirationDate > 0 AND that date is in the past.
-            val spoiledInRecipe = matchingInvItems.filter { it.expirationDate > 0 && it.expirationDate < currentTime && it.quantity > 0 }
+            // An item is spoiled if it has an expirationDate > 0 AND that date is in the past (beyond buffer).
+            val spoiledInRecipe = matchingInvItems.filter { it.expirationDate > 0 && (it.expirationDate + expirationBuffer) < currentTime && it.quantity > 0 }
             val hasSpoiled = spoiledInRecipe.isNotEmpty()
 
-            // 4. Prepare inventory items for algorithm - FILTER OUT spoiled (Option 1)
-            // Usable items are those with expirationDate == 0 (non-perishable) OR expirationDate >= currentTime (not yet spoiled)
-            val usableInv = matchingInvItems.filter { it.expirationDate == 0L || it.expirationDate >= currentTime }
-            val normalizedMatchingInv = usableInv.map { 
+            // 4. Prepare "Capped" inventory items for Knapsack (Multi-batch Virtual Summing)
+            // This prevents an overabundant ingredient from "filling capacity" for a missing ingredient.
+            val usableInventory = inventory.filter { 
+                it.expirationDate == 0L || (it.expirationDate + expirationBuffer) >= currentTime 
+            }
+
+            val cappedInvForScore = mutableListOf<Ingredient>()
+            recipe.ingredients.forEach { required ->
+                val reqNameNorm = required.name.replace("\\s".toRegex(), "").lowercase()
+                val requiredBase = UnitConverter.toBaseUnit(required.quantity, required.unit)
+                
+                val batches = usableInventory.filter { 
+                    it.name.replace("\\s".toRegex(), "").lowercase() == reqNameNorm 
+                }.sortedWith(compareBy<Ingredient> { 
+                    if (it.expirationDate == 0L) Long.MAX_VALUE else it.expirationDate 
+                })
+
+                var takenBase = 0.0
+                for (batch in batches) {
+                    val batchBase = UnitConverter.toBaseUnit(batch.quantity, batch.unit)
+                    val remainingNeeded = (requiredBase - takenBase).coerceAtLeast(0.0)
+                    if (remainingNeeded <= 0) break
+                    
+                    val toTake = minOf(batchBase, remainingNeeded)
+                    if (toTake > 0) {
+                        cappedInvForScore.add(batch.copy(
+                            quantity = UnitConverter.fromBaseUnit(toTake, batch.unit)
+                        ))
+                        takenBase += toTake
+                    }
+                }
+            }
+
+            val normalizedMatchingInv = cappedInvForScore.map { 
                 it.copy(quantity = UnitConverter.toBaseUnit(it.quantity, it.unit), unit = "g/ml") 
             }
 
@@ -62,7 +93,7 @@ object RecipeRecommendationEngine {
             }
 
             // Sort matching items by most urgent (closest to expiry, but NOT spoiled)
-            val urgentItems = usableInv
+            val urgentItems = cappedInvForScore
                 .filter { it.expirationDate > 0 && it.quantity > 0 }
                 .sortedBy { it.expirationDate }
                 .take(2)
@@ -86,7 +117,10 @@ object RecipeRecommendationEngine {
                 if (missing.isEmpty()) {
                     reasons.add("✅ Ready to cook: All items in stock")
                 } else {
-                    reasons.add("📝 Stock up soon for this recipe")
+                    missing.forEach { item ->
+                        val missingDisplay = UnitConverter.formatDisplay(item.quantity, item.unit)
+                        reasons.add("⚠️ Need $missingDisplay more ${item.name}")
+                    }
                 }
             }
 
@@ -97,17 +131,28 @@ object RecipeRecommendationEngine {
 
     /**
      * Identifies which ingredients are missing or insufficient and by how much.
+     * Only considers usable (non-spoiled) ingredients.
      */
-    private fun getMissingIngredients(inventory: List<Ingredient>, recipe: Recipe): List<Ingredient> {
+    private fun getMissingIngredients(inventory: List<Ingredient>, recipe: Recipe, currentTime: Long): List<Ingredient> {
         val missing = mutableListOf<Ingredient>()
+        
+        // Filter out spoiled items before checking sufficiency
+        val expirationBuffer = 60000L 
+        val usableInventory = inventory.filter { 
+            it.expirationDate == 0L || (it.expirationDate + expirationBuffer) >= currentTime 
+        }
+
         for (required in recipe.ingredients) {
-            val totalAvailableBase = inventory
-                .filter { it.name.equals(required.name, ignoreCase = true) }
+            val reqNameNorm = required.name.replace("\\s".toRegex(), "").lowercase()
+            
+            // Sum all usable batches with matching names (Robust regex normalization)
+            val totalAvailableBase = usableInventory
+                .filter { it.name.replace("\\s".toRegex(), "").lowercase() == reqNameNorm }
                 .sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
             
             val requiredBase = UnitConverter.toBaseUnit(required.quantity, required.unit)
             
-            if (totalAvailableBase < requiredBase) {
+            if (totalAvailableBase < (requiredBase - 0.01)) {
                 val diffBase = requiredBase - totalAvailableBase
                 missing.add(Ingredient(
                     name = required.name,

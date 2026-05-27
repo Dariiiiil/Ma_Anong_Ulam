@@ -23,6 +23,9 @@ interface MaAnongUlamDao {
     @Query("SELECT * FROM ingredients WHERE name = :name LIMIT 1")
     suspend fun getIngredientByName(name: String): IngredientEntity?
 
+    @Query("SELECT * FROM ingredients WHERE LOWER(TRIM(name)) = LOWER(TRIM(:name))")
+    suspend fun getIngredientsByName(name: String): List<IngredientEntity>
+
     @Query("DELETE FROM ingredients")
     suspend fun deleteAllIngredients()
 

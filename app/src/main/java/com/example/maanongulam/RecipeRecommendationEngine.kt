@@ -17,6 +17,8 @@ data class RecommendedRecipe(
  */
 object RecipeRecommendationEngine {
 
+    private fun String.normalize() = this.replace("\\s".toRegex(), "").lowercase()
+
     /**
      * Ranks all recipes and returns the top 3 recommendations.
      *
@@ -28,19 +30,23 @@ object RecipeRecommendationEngine {
         val currentTime = System.currentTimeMillis()
         val expirationBuffer = 60000L // 1 minute buffer
 
-        // Pre-filter usable inventory once
-        val usableInventory = inventory.filter {
-            it.expirationDate == 0L || (it.expirationDate + expirationBuffer) >= currentTime
-        }
+        // Pre-group full inventory for spoiled checks (Step 2 & 3)
+        val fullInventoryMap = inventory.groupBy { it.name.normalize() }
+
+        // Pre-filter and group usable inventory once (Step 1 & 4)
+        val usableInventoryMap = inventory
+            .filter { it.expirationDate == 0L || (it.expirationDate + expirationBuffer) >= currentTime }
+            .groupBy { it.name.normalize() }
 
         return recipes.map { recipe ->
+            val recipeIngNamesNorm = recipe.ingredients.map { it.name.normalize() }
+            
             // 1. Get missing ingredients (considering only usable items)
-            val missing = getMissingIngredients(usableInventory, recipe)
+            val missing = getMissingIngredients(usableInventoryMap, recipe)
             val isInsufficient = missing.isNotEmpty()
 
             // 2. Identify matching inventory items (including spoiled for warnings)
-            val recipeIngNamesNorm = recipe.ingredients.map { it.name.replace("\\s".toRegex(), "").lowercase() }
-            val matchingInvItems = inventory.filter { it.name.replace("\\s".toRegex(), "").lowercase() in recipeIngNamesNorm }
+            val matchingInvItems = recipeIngNamesNorm.flatMap { name -> fullInventoryMap[name] ?: emptyList() }
 
             // 3. Safety Check: Does it use spoiled ingredients?
             val spoiledInRecipe = matchingInvItems.filter { 
@@ -49,17 +55,15 @@ object RecipeRecommendationEngine {
             val hasSpoiled = spoiledInRecipe.isNotEmpty()
 
             // 4. Prepare "Capped" inventory items for Knapsack (Multi-batch Virtual Summing)
-            // This prevents an overabundant ingredient from "filling capacity" for a missing ingredient.
             val cappedInvForScore = mutableListOf<Ingredient>()
             recipe.ingredients.forEach { required ->
-                val reqNameNorm = required.name.replace("\\s".toRegex(), "").lowercase()
+                val reqNameNorm = required.name.normalize()
                 val requiredBase = UnitConverter.toBaseUnit(required.quantity, required.unit)
                 
-                val batches = usableInventory.filter { 
-                    it.name.replace("\\s".toRegex(), "").lowercase() == reqNameNorm 
-                }.sortedWith(compareBy<Ingredient> { 
-                    if (it.expirationDate == 0L) Long.MAX_VALUE else it.expirationDate 
-                })
+                val batches = (usableInventoryMap[reqNameNorm] ?: emptyList())
+                    .sortedWith(compareBy<Ingredient> { 
+                        if (it.expirationDate == 0L) Long.MAX_VALUE else it.expirationDate 
+                    })
 
                 var takenBase = 0.0
                 for (batch in batches) {
@@ -129,21 +133,18 @@ object RecipeRecommendationEngine {
 
     /**
      * Identifies which ingredients are missing or insufficient and by how much.
-     * Uses robust normalization and filters out spoiled items.
      */
-    private fun getMissingIngredients(usableInventory: List<Ingredient>, recipe: Recipe): List<Ingredient> {
+    private fun getMissingIngredients(usableInventoryMap: Map<String, List<Ingredient>>, recipe: Recipe): List<Ingredient> {
         val missing = mutableListOf<Ingredient>()
         
         for (required in recipe.ingredients) {
-            val reqNameNorm = required.name.replace("\\s".toRegex(), "").lowercase()
+            val reqNameNorm = required.name.normalize()
             
-            val totalAvailableBase = usableInventory
-                .filter { it.name.replace("\\s".toRegex(), "").lowercase() == reqNameNorm }
+            val totalAvailableBase = (usableInventoryMap[reqNameNorm] ?: emptyList())
                 .sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
             
             val requiredBase = UnitConverter.toBaseUnit(required.quantity, required.unit)
             
-            // Using 0.01 epsilon to avoid floating point issues
             if (totalAvailableBase < (requiredBase - 0.01)) {
                 val diffBase = requiredBase - totalAvailableBase
                 missing.add(Ingredient(

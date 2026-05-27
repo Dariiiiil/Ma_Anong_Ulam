@@ -1,5 +1,6 @@
 package com.example.maanongulam
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -9,6 +10,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "ingredients")
 data class IngredientEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @ColumnInfo(collate = ColumnInfo.NOCASE)
     val name: String,
     val quantity: Double,
     val unit: String = "g", // Defaults to grams (Philippine metric standard)

@@ -36,7 +36,7 @@ fun IngredientInputScreen(
     var quantity by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("g") }
     var expanded by remember { mutableStateOf(false) }
-    val units = listOf("g", "kg", "ml", "L", "tsp", "tbsp", "cup", "pcs", "pack")
+    val units = listOf("g", "kg", "ml", "L")
 
     var category by remember { mutableStateOf("Others") }
     var categoryExpanded by remember { mutableStateOf(false) }
@@ -378,7 +378,7 @@ fun IngredientInputScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(text = ingredient.name, fontWeight = FontWeight.Bold)
-                                if (UnitConverter.isLowStock(ingredient.quantity, ingredient.unit)) {
+                                if (UnitConverter.isLowStock(ingredient.quantity, ingredient.unit, ingredient.category)) {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Surface(
                                         color = MaterialTheme.colorScheme.errorContainer,

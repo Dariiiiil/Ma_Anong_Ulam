@@ -126,19 +126,47 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     fun deleteAllRecipes() { viewModelScope.launch { dao.deleteAllRecipes() } }
     fun deleteAllCookingLogs() { viewModelScope.launch { dao.deleteAllCookingLogs() } }
 
-    fun addMissingToShoppingList(missing: List<Ingredient>) {
+    fun addMissingToShoppingList(missing: List<Ingredient>, isManual: Boolean = true) {
         viewModelScope.launch {
+            // 1. Group missing items by name to avoid internal duplicates
+            val mergedMissing = missing.groupBy { it.name.trim().lowercase() }.map { (lowName, items) ->
+                val first = items.first()
+                val totalBase = items.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
+                Ingredient(
+                    name = first.name.trim(),
+                    quantity = UnitConverter.fromBaseUnit(totalBase, first.unit),
+                    unit = first.unit,
+                    expirationDate = 0L
+                )
+            }
+
             val duplicates = mutableListOf<Pair<ShoppingItem, Ingredient>>()
             val newItems = mutableListOf<Ingredient>()
-            missing.forEach { item ->
+            
+            mergedMissing.forEach { item ->
                 val existing = dao.getShoppingItemByName(item.name)
-                if (existing != null) duplicates.add(existing to item)
-                else newItems.add(item)
+                if (existing != null) {
+                    // Only track as duplicate if it's a manual request
+                    if (isManual) {
+                        duplicates.add(existing to item)
+                    }
+                } else {
+                    newItems.add(item)
+                }
             }
+            
+            // 2. Add truly new items to the database
             newItems.forEach { item ->
                 dao.insertShoppingItem(ShoppingItem(name = item.name, quantity = item.quantity, unit = item.unit))
             }
-            if (duplicates.isNotEmpty()) _pendingShoppingDuplicates.value = duplicates
+            
+            // 3. Show dialog ONLY for manual actions and ONLY if there are duplicates
+            if (isManual && duplicates.isNotEmpty()) {
+                _pendingShoppingDuplicates.value = duplicates
+            } else {
+                // Ensure dialog is null if there's nothing to show
+                _pendingShoppingDuplicates.value = null
+            }
         }
     }
 
@@ -147,6 +175,7 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             if (merge) {
                 pending.forEach { (existing, newItem) ->
+                    // Normalize units before merging if possible
                     val totalBase = UnitConverter.toBaseUnit(existing.quantity, existing.unit) + UnitConverter.toBaseUnit(newItem.quantity, newItem.unit)
                     dao.insertShoppingItem(existing.copy(quantity = UnitConverter.fromBaseUnit(totalBase, existing.unit)))
                 }
@@ -160,8 +189,9 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     fun runAutoRestockCheck() {
         viewModelScope.launch {
             val topRecommendation = recommendations.value.firstOrNull()
-            if (topRecommendation != null && topRecommendation.isInsufficient) {
-                addMissingToShoppingList(topRecommendation.missingIngredients)
+            // Auto-restock only for the "Ulam of the Day" if it's missing something
+            if (topRecommendation != null && topRecommendation.isInsufficient && !topRecommendation.hasSpoiledIngredients) {
+                addMissingToShoppingList(topRecommendation.missingIngredients, isManual = false)
             }
         }
     }

@@ -11,14 +11,7 @@ object UnitConverter {
         return when (unit.lowercase().trim()) {
             "kg", "kilogram", "kilograms", "kilo" -> quantity * 1000.0
             "l", "liter", "liters", "litre" -> quantity * 1000.0
-            "ml", "milliliter", "milliliters" -> quantity
-            "g", "gram", "grams" -> quantity
-            "tsp", "teaspoon", "teaspoons" -> quantity * 5.0
-            "tbsp", "tablespoon", "tablespoons" -> quantity * 15.0
-            "cup", "cups" -> quantity * 240.0
-            "oz", "ounce", "ounces" -> quantity * 28.35
-            "lb", "pound", "pounds" -> quantity * 453.59
-            else -> quantity // pcs, packs, etc. remain as is
+            else -> quantity // g, ml remain as is
         }
     }
 
@@ -29,21 +22,27 @@ object UnitConverter {
         return when (targetUnit.lowercase().trim()) {
             "kg", "kilogram", "kilograms", "kilo" -> baseQuantity / 1000.0
             "l", "liter", "liters", "litre" -> baseQuantity / 1000.0
-            "tsp", "teaspoon", "teaspoons" -> baseQuantity / 5.0
-            "tbsp", "tablespoon", "tablespoons" -> baseQuantity / 15.0
-            "cup", "cups" -> baseQuantity / 240.0
-            "oz", "ounce", "ounces" -> baseQuantity / 28.35
-            "lb", "pound", "pounds" -> baseQuantity / 453.59
             else -> baseQuantity
         }
     }
 
     /**
      * Checks if the quantity is considered "low stock".
-     * Threshold is 100 units in base (100g or 100ml).
+     * Threshold is set to 30% of standard estimated "full" capacities per category.
      */
-    fun isLowStock(quantity: Double, unit: String): Boolean {
-        return toBaseUnit(quantity, unit) <= 100.0 && toBaseUnit(quantity, unit) > 0
+    fun isLowStock(quantity: Double, unit: String, category: String = "Others"): Boolean {
+        val base = toBaseUnit(quantity, unit)
+        if (base <= 0) return false
+
+        // Weight/Volume thresholds (30% of previous logic)
+        return when (category.lowercase().trim()) {
+            "spices" -> base <= 6.0    // e.g., < 6g/ml
+            "grains" -> base <= 150.0  // e.g., < 150g (less than 1 cup of rice)
+            "meat", "seafood" -> base <= 90.0  // e.g., < 90g
+            "vegetables" -> base <= 60.0 // e.g., < 60g
+            "dairy" -> base <= 60.0
+            else -> base <= 30.0 // Default (30g/ml)
+        }
     }
 
     /**

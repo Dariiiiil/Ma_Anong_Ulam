@@ -117,7 +117,7 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             val spoiled = recommendations.flatMap { it.reasons }.filter { it.contains("💀 Contains spoiled") }.map { it.replace("💀 Contains spoiled: ", "") }.distinct()
-            val lowStock = allIngredients.filter { UnitConverter.isLowStock(it.quantity, it.unit) }
+            val lowStock = allIngredients.filter { UnitConverter.isLowStock(it.quantity, it.unit, it.category) }
 
             if (spoiled.isNotEmpty() || lowStock.isNotEmpty()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

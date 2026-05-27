@@ -37,7 +37,7 @@ fun RecipeInputScreen(
     var recipeName by remember { mutableStateOf("") }
     // Triple: Name, Quantity, Unit
     val ingredients = remember { mutableStateListOf<Triple<String, String, String>>() } 
-    val units = listOf("g", "kg", "ml", "L", "tsp", "tbsp", "cup", "pcs", "pack")
+    val units = listOf("g", "kg", "ml", "L")
 
     var editingRecipe by remember { mutableStateOf<RecipeEntity?>(null) }
     var searchQuery by remember { mutableStateOf("") }

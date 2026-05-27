@@ -226,7 +226,7 @@ fun IngredientListScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(text = ingredient.name, fontWeight = FontWeight.Bold)
-                                    if (UnitConverter.isLowStock(ingredient.quantity, ingredient.unit)) {
+                                    if (UnitConverter.isLowStock(ingredient.quantity, ingredient.unit, ingredient.category)) {
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Surface(
                                             color = MaterialTheme.colorScheme.errorContainer,

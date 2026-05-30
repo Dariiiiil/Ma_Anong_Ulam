@@ -60,6 +60,7 @@ object UnitConverter {
 
 object RecommendationEngine {
     fun fractionalKnapsack(ingredientsList: List<Ingredient>, capacity: Double): Double {
+        // 1. Calculate density for each item
         val currentTime = System.currentTimeMillis()
         val itemsWithDensity = ingredientsList.map { ingredient ->
             val remainingMs = ingredient.expirationDate - currentTime
@@ -72,15 +73,18 @@ object RecommendationEngine {
             val weight = ingredient.quantity
             KnapsackItem(urgencyPerUnit * weight, weight, urgencyPerUnit)
         }
+        // 2. Sort items by density in descending order
         val sortedItems = itemsWithDensity.sortedByDescending { it.ratio }
         var totalValue = 0.0
         var currentWeight = 0.0
+        // 3. Iterate through the sorted items and add them to the knapsack until the capacity is reached
         for (item in sortedItems) {
             if (currentWeight + item.weight <= capacity) {
                 currentWeight += item.weight
                 totalValue += item.value
             } else {
                 val remaining = capacity - currentWeight
+                // divide by zero protection
                 if (item.weight > 0) totalValue += item.value * (remaining / item.weight)
                 break
             }

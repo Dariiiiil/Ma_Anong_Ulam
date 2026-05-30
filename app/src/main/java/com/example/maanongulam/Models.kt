@@ -77,6 +77,19 @@ data class CookingLogEntity(
 )
 
 /**
+ * Room Entity for defining a food type and its attributes.
+ */
+@Entity(tableName = "food_definitions")
+data class FoodDefinitionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @ColumnInfo(collate = ColumnInfo.NOCASE)
+    val name: String,
+    val unitType: String, // "MASS", "VOLUME", "COUNT"
+    val category: String = "Others",
+    val isImperishable: Boolean = false
+)
+
+/**
  * Room Entity for the shopping list items.
  */
 @Entity(tableName = "shopping_list")

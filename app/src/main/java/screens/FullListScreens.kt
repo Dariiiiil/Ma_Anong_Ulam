@@ -164,7 +164,9 @@ fun IngredientListScreen(
             )
 
             val filteredIngredients = remember(ingredients, searchQuery, sortType, isAscending) {
-                val filtered = ingredients.filter { it.name.contains(searchQuery, ignoreCase = true) }
+                val filtered = ingredients.filter { 
+                    it.quantity > 0 && it.name.contains(searchQuery, ignoreCase = true) 
+                }
                 val sorted = when (sortType) {
                     SortType.NAME -> filtered.sortedBy { it.name.lowercase() }
                     SortType.CATEGORY -> filtered.sortedBy { it.category.lowercase() }

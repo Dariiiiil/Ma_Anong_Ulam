@@ -109,15 +109,6 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun addIngredientIfMissing(name: String, unit: String, expirationDate: Long, category: String) {
-        viewModelScope.launch {
-            val normalizedName = name.trim()
-            if (dao.getIngredientByName(normalizedName) == null) {
-                dao.insertOrUpdateIngredient(IngredientEntity(name = normalizedName, quantity = 0.0, unit = unit, expirationDate = expirationDate, category = category))
-            }
-        }
-    }
-
     fun updateRecipe(recipe: RecipeEntity) {
         viewModelScope.launch {
             val normalizedRecipe = recipe.copy(name = recipe.name.trim(), ingredients = recipe.ingredients.map { it.copy(name = it.name.trim()) })
@@ -182,13 +173,68 @@ class IngredientViewModel(application: Application) : AndroidViewModel(applicati
     val ingredients: StateFlow<List<IngredientEntity>> = dao.getAllIngredients()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val foodDefinitions: StateFlow<List<FoodDefinitionEntity>> = dao.getAllFoodDefinitions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun addIngredient(name: String, quantity: Double, unit: String, expirationDate: Long, category: String) {
+        if (quantity <= 0.0) return
         viewModelScope.launch {
             dao.insertOrUpdateIngredient(IngredientEntity(name = name, quantity = quantity, unit = unit, expirationDate = expirationDate, category = category))
         }
     }
 
-    fun updateIngredient(ingredient: IngredientEntity) { viewModelScope.launch { dao.insertOrUpdateIngredient(ingredient) } }
+    fun addFoodDefinition(name: String, unitType: String, category: String, isImperishable: Boolean = false) {
+        viewModelScope.launch {
+            dao.insertFoodDefinition(FoodDefinitionEntity(name = name, unitType = unitType, category = category, isImperishable = isImperishable))
+        }
+    }
+
+    fun deleteFoodDefinition(definition: FoodDefinitionEntity) {
+        viewModelScope.launch {
+            dao.deleteFoodDefinition(definition)
+        }
+    }
+
+    fun updateFoodDefinition(definition: FoodDefinitionEntity) {
+        viewModelScope.launch {
+            dao.insertFoodDefinition(definition)
+        }
+    }
+
+    fun updateIngredient(ingredient: IngredientEntity) {
+        viewModelScope.launch {
+            if (ingredient.quantity <= 0.0) {
+                dao.deleteIngredient(ingredient)
+            } else {
+                dao.insertOrUpdateIngredient(ingredient)
+            }
+        }
+    }
+
+    fun moveToInventory(item: ShoppingItem, foodDefinition: FoodDefinitionEntity?) {
+        viewModelScope.launch {
+            val expiry = if (foodDefinition?.isImperishable == true) 0L else {
+                System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L) // Default 1 week
+            }
+            val category = foodDefinition?.category ?: "Others"
+            
+            val existing = dao.getIngredientByName(item.name)
+            if (existing != null && existing.expirationDate == expiry) {
+                val totalBase = UnitConverter.toBaseUnit(existing.quantity, existing.unit) + UnitConverter.toBaseUnit(item.quantity, item.unit)
+                dao.insertOrUpdateIngredient(existing.copy(quantity = UnitConverter.fromBaseUnit(totalBase, existing.unit)))
+            } else {
+                dao.insertOrUpdateIngredient(IngredientEntity(
+                    name = item.name,
+                    quantity = item.quantity,
+                    unit = item.unit,
+                    expirationDate = expiry,
+                    category = category
+                ))
+            }
+            dao.deleteShoppingItem(item)
+        }
+    }
+
     fun deleteIngredient(ingredient: IngredientEntity) { viewModelScope.launch { dao.deleteIngredient(ingredient) } }
     fun deleteAllIngredients() { viewModelScope.launch { dao.deleteAllIngredients() } }
 }
@@ -201,7 +247,20 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     val shoppingItems: StateFlow<List<ShoppingItem>> = dao.getAllShoppingItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    fun addItem(name: String, quantity: Double, unit: String) {
+        viewModelScope.launch {
+            val existing = dao.getShoppingItemByName(name)
+            if (existing != null) {
+                val totalBase = UnitConverter.toBaseUnit(existing.quantity, existing.unit) + UnitConverter.toBaseUnit(quantity, unit)
+                dao.insertShoppingItem(existing.copy(quantity = UnitConverter.fromBaseUnit(totalBase, existing.unit)))
+            } else {
+                dao.insertShoppingItem(ShoppingItem(name = name, quantity = quantity, unit = unit))
+            }
+        }
+    }
+
     fun toggleChecked(item: ShoppingItem) { viewModelScope.launch { dao.insertShoppingItem(item.copy(isChecked = !item.isChecked)) } }
+    fun updateItem(item: ShoppingItem) { viewModelScope.launch { dao.insertShoppingItem(item) } }
     fun deleteItem(item: ShoppingItem) { viewModelScope.launch { dao.deleteShoppingItem(item) } }
     fun clearCheckedItems() {
         viewModelScope.launch {

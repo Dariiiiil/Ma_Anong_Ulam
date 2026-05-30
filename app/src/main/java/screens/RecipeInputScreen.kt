@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,8 +31,7 @@ import com.example.maanongulam.RecommendationViewModel
 @Composable
 fun RecipeInputScreen(
     viewModel: RecommendationViewModel = viewModel(),
-    onExpandList: () -> Unit = {},
-    onPremadeClick: () -> Unit = {}
+    onExpandList: () -> Unit = {}
 ) {
     val recipes by viewModel.allRecipes.collectAsState()
     
@@ -76,16 +74,11 @@ fun RecipeInputScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (editingRecipe == null) "Create New Recipe" else "Edit Recipe",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    IconButton(onClick = onPremadeClick) {
-                        Icon(Icons.Default.Restaurant, contentDescription = "Premade Recipes")
-                    }
-                }
+                Text(
+                    text = if (editingRecipe == null) "Create New Recipe" else "Edit Recipe",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
                 Icon(
                     imageVector = if (isFormExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                     contentDescription = null

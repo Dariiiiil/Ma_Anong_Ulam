@@ -1,4 +1,4 @@
-package com.example.maanongulam
+package screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.maanongulam.ShoppingViewModel
+import com.example.maanongulam.UnitConverter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

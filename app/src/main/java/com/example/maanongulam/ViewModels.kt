@@ -2,12 +2,15 @@ package com.example.maanongulam
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+// --- Recommendation & Recipe Management ---
 
 class RecommendationViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
@@ -15,7 +18,7 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
 
     val allRecipes: StateFlow<List<RecipeEntity>> = dao.getAllRecipes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    
+
     val allIngredients: StateFlow<List<IngredientEntity>> = dao.getAllIngredients()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -128,45 +131,21 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
 
     fun addMissingToShoppingList(missing: List<Ingredient>, isManual: Boolean = true) {
         viewModelScope.launch {
-            // 1. Group missing items by name to avoid internal duplicates
             val mergedMissing = missing.groupBy { it.name.trim().lowercase() }.map { (lowName, items) ->
                 val first = items.first()
                 val totalBase = items.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
-                Ingredient(
-                    name = first.name.trim(),
-                    quantity = UnitConverter.fromBaseUnit(totalBase, first.unit),
-                    unit = first.unit,
-                    expirationDate = 0L
-                )
+                Ingredient(name = first.name.trim(), quantity = UnitConverter.fromBaseUnit(totalBase, first.unit), unit = first.unit, expirationDate = 0L)
             }
-
             val duplicates = mutableListOf<Pair<ShoppingItem, Ingredient>>()
             val newItems = mutableListOf<Ingredient>()
-            
             mergedMissing.forEach { item ->
                 val existing = dao.getShoppingItemByName(item.name)
-                if (existing != null) {
-                    // Only track as duplicate if it's a manual request
-                    if (isManual) {
-                        duplicates.add(existing to item)
-                    }
-                } else {
-                    newItems.add(item)
-                }
+                if (existing != null) { if (isManual) duplicates.add(existing to item) }
+                else { newItems.add(item) }
             }
-            
-            // 2. Add truly new items to the database
-            newItems.forEach { item ->
-                dao.insertShoppingItem(ShoppingItem(name = item.name, quantity = item.quantity, unit = item.unit))
-            }
-            
-            // 3. Show dialog ONLY for manual actions and ONLY if there are duplicates
-            if (isManual && duplicates.isNotEmpty()) {
-                _pendingShoppingDuplicates.value = duplicates
-            } else {
-                // Ensure dialog is null if there's nothing to show
-                _pendingShoppingDuplicates.value = null
-            }
+            newItems.forEach { item -> dao.insertShoppingItem(ShoppingItem(name = item.name, quantity = item.quantity, unit = item.unit)) }
+            if (isManual && duplicates.isNotEmpty()) { _pendingShoppingDuplicates.value = duplicates }
+            else { _pendingShoppingDuplicates.value = null }
         }
     }
 
@@ -175,7 +154,6 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
         viewModelScope.launch {
             if (merge) {
                 pending.forEach { (existing, newItem) ->
-                    // Normalize units before merging if possible
                     val totalBase = UnitConverter.toBaseUnit(existing.quantity, existing.unit) + UnitConverter.toBaseUnit(newItem.quantity, newItem.unit)
                     dao.insertShoppingItem(existing.copy(quantity = UnitConverter.fromBaseUnit(totalBase, existing.unit)))
                 }
@@ -189,10 +167,63 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     fun runAutoRestockCheck() {
         viewModelScope.launch {
             val topRecommendation = recommendations.value.firstOrNull()
-            // Auto-restock only for the "Ulam of the Day" if it's missing something
             if (topRecommendation != null && topRecommendation.isInsufficient && !topRecommendation.hasSpoiledIngredients) {
                 addMissingToShoppingList(topRecommendation.missingIngredients, isManual = false)
             }
+        }
+    }
+}
+
+// --- Ingredient Management ---
+
+class IngredientViewModel(application: Application) : AndroidViewModel(application) {
+    private val dao = AppDatabase.getDatabase(application).maAnongUlamDao()
+
+    val ingredients: StateFlow<List<IngredientEntity>> = dao.getAllIngredients()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addIngredient(name: String, quantity: Double, unit: String, expirationDate: Long, category: String) {
+        viewModelScope.launch {
+            dao.insertOrUpdateIngredient(IngredientEntity(name = name, quantity = quantity, unit = unit, expirationDate = expirationDate, category = category))
+        }
+    }
+
+    fun updateIngredient(ingredient: IngredientEntity) { viewModelScope.launch { dao.insertOrUpdateIngredient(ingredient) } }
+    fun deleteIngredient(ingredient: IngredientEntity) { viewModelScope.launch { dao.deleteIngredient(ingredient) } }
+    fun deleteAllIngredients() { viewModelScope.launch { dao.deleteAllIngredients() } }
+}
+
+// --- Shopping List Management ---
+
+class ShoppingViewModel(application: Application) : AndroidViewModel(application) {
+    private val dao = AppDatabase.getDatabase(application).maAnongUlamDao()
+
+    val shoppingItems: StateFlow<List<ShoppingItem>> = dao.getAllShoppingItems()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun toggleChecked(item: ShoppingItem) { viewModelScope.launch { dao.insertShoppingItem(item.copy(isChecked = !item.isChecked)) } }
+    fun deleteItem(item: ShoppingItem) { viewModelScope.launch { dao.deleteShoppingItem(item) } }
+    fun clearCheckedItems() {
+        viewModelScope.launch {
+            shoppingItems.value.filter { it.isChecked }.forEach { dao.deleteShoppingItem(it) }
+        }
+    }
+}
+
+// --- Legacy/Simple Recipe Handler ---
+
+class RecipeViewModel : ViewModel() {
+    private val _inventory = MutableStateFlow<List<Ingredient>>(emptyList())
+    val inventory: StateFlow<List<Ingredient>> = _inventory.asStateFlow()
+    private val _allRecipes = MutableStateFlow<List<Recipe>>(emptyList())
+    private val _recommendations = MutableStateFlow<List<RecommendedRecipe>>(emptyList())
+    val recommendations: StateFlow<List<RecommendedRecipe>> = _recommendations.asStateFlow()
+
+    fun updateInventory(newInventory: List<Ingredient>) { _inventory.value = newInventory; refreshRecommendations() }
+    fun updateRecipes(newRecipes: List<Recipe>) { _allRecipes.value = newRecipes; refreshRecommendations() }
+    private fun refreshRecommendations() {
+        if (_inventory.value.isNotEmpty() && _allRecipes.value.isNotEmpty()) {
+            _recommendations.value = RecipeRecommendationEngine.recommendTopRecipes(_inventory.value, _allRecipes.value)
         }
     }
 }

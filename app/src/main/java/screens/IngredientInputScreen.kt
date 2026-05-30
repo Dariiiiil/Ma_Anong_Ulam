@@ -1,4 +1,4 @@
-package com.example.maanongulam
+package screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +23,9 @@ import java.util.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import com.example.maanongulam.IngredientEntity
+import com.example.maanongulam.IngredientViewModel
+import com.example.maanongulam.UnitConverter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

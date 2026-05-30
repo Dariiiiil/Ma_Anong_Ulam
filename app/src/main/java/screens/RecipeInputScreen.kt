@@ -1,4 +1,4 @@
-package com.example.maanongulam
+package screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,6 +24,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import com.example.maanongulam.Ingredient
+import com.example.maanongulam.RecipeEntity
+import com.example.maanongulam.RecommendationViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

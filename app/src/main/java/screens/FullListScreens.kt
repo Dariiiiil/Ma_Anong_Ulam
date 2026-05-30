@@ -1,4 +1,4 @@
-package com.example.maanongulam
+package screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +21,9 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
+import com.example.maanongulam.IngredientViewModel
+import com.example.maanongulam.RecommendationViewModel
+import com.example.maanongulam.UnitConverter
 
 enum class SortType { NAME, CATEGORY, EXPIRY, STOCK }
 

@@ -1,4 +1,4 @@
-package com.example.maanongulam
+package screens
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons

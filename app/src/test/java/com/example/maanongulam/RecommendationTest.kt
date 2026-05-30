@@ -3,7 +3,7 @@ package com.example.maanongulam
 import org.junit.Assert.*
 import org.junit.Test
 
-class RecommendationTest {
+class   RecommendationTest {
 
     @Test
     fun testCorrectRanking() {

@@ -1,4 +1,4 @@
-package com.example.maanongulam
+package screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +16,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.example.maanongulam.Ingredient
+import com.example.maanongulam.Recipe
+import com.example.maanongulam.RecommendationViewModel
 
 @Composable
 fun PremadeRecipesScreen(
@@ -25,35 +28,43 @@ fun PremadeRecipesScreen(
     val myRecipes by viewModel.allRecipes.collectAsState()
 
     val premadeRecipes = listOf(
-        Recipe("Sinigang na Baboy", listOf(
-            Ingredient("Pork", 500.0, "g", System.currentTimeMillis(), "Meat"),
-            Ingredient("Tamarind Mix", 1.0, "g", 0L, "Spices"),
-            Ingredient("Radish", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
-            Ingredient("Eggplant", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
-            Ingredient("String Beans", 50.0, "g", System.currentTimeMillis(), "Vegetables"),
-            Ingredient("Water", 1.5, "L", 0L, "Others")
-        )),
-        Recipe("Chicken Curry", listOf(
-            Ingredient("Chicken", 500.0, "g", System.currentTimeMillis(), "Meat"),
-            Ingredient("Curry Powder", 20.0, "g", 0L, "Spices"),
-            Ingredient("Coconut Milk", 200.0, "ml", 0L, "Dairy"),
-            Ingredient("Potato", 150.0, "g", System.currentTimeMillis(), "Vegetables"),
-            Ingredient("Carrot", 100.0, "g", System.currentTimeMillis(), "Vegetables")
-        )),
-        Recipe("Pork Menudo", listOf(
-            Ingredient("Pork", 500.0, "g", System.currentTimeMillis(), "Meat"),
-            Ingredient("Tomato Sauce", 200.0, "ml", 0L, "Spices"),
-            Ingredient("Liver", 100.0, "g", System.currentTimeMillis(), "Meat"),
-            Ingredient("Potato", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
-            Ingredient("Carrot", 100.0, "g", System.currentTimeMillis(), "Vegetables")
-        )),
-        Recipe("Beef Pares", listOf(
-            Ingredient("Beef", 500.0, "g", System.currentTimeMillis(), "Meat"),
-            Ingredient("Star Anise", 2.0, "g", 0L, "Spices"),
-            Ingredient("Soy Sauce", 100.0, "ml", 0L, "Spices"),
-            Ingredient("Sugar", 50.0, "g", 0L, "Spices"),
-            Ingredient("Garlic", 20.0, "g", 0L, "Vegetables")
-        ))
+        Recipe(
+            "Sinigang na Baboy", listOf(
+                Ingredient("Pork", 500.0, "g", System.currentTimeMillis(), "Meat"),
+                Ingredient("Tamarind Mix", 1.0, "g", 0L, "Spices"),
+                Ingredient("Radish", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
+                Ingredient("Eggplant", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
+                Ingredient("String Beans", 50.0, "g", System.currentTimeMillis(), "Vegetables"),
+                Ingredient("Water", 1.5, "L", 0L, "Others")
+            )
+        ),
+        Recipe(
+            "Chicken Curry", listOf(
+                Ingredient("Chicken", 500.0, "g", System.currentTimeMillis(), "Meat"),
+                Ingredient("Curry Powder", 20.0, "g", 0L, "Spices"),
+                Ingredient("Coconut Milk", 200.0, "ml", 0L, "Dairy"),
+                Ingredient("Potato", 150.0, "g", System.currentTimeMillis(), "Vegetables"),
+                Ingredient("Carrot", 100.0, "g", System.currentTimeMillis(), "Vegetables")
+            )
+        ),
+        Recipe(
+            "Pork Menudo", listOf(
+                Ingredient("Pork", 500.0, "g", System.currentTimeMillis(), "Meat"),
+                Ingredient("Tomato Sauce", 200.0, "ml", 0L, "Spices"),
+                Ingredient("Liver", 100.0, "g", System.currentTimeMillis(), "Meat"),
+                Ingredient("Potato", 100.0, "g", System.currentTimeMillis(), "Vegetables"),
+                Ingredient("Carrot", 100.0, "g", System.currentTimeMillis(), "Vegetables")
+            )
+        ),
+        Recipe(
+            "Beef Pares", listOf(
+                Ingredient("Beef", 500.0, "g", System.currentTimeMillis(), "Meat"),
+                Ingredient("Star Anise", 2.0, "g", 0L, "Spices"),
+                Ingredient("Soy Sauce", 100.0, "ml", 0L, "Spices"),
+                Ingredient("Sugar", 50.0, "g", 0L, "Spices"),
+                Ingredient("Garlic", 20.0, "g", 0L, "Vegetables")
+            )
+        )
     )
 
     Column(

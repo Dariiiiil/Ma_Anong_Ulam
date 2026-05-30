@@ -1,4 +1,4 @@
-package com.example.maanongulam
+package screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
@@ -14,6 +14,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.maanongulam.RecommendationViewModel
+import com.example.maanongulam.RecommendedRecipe
+import com.example.maanongulam.UnitConverter
 import java.text.SimpleDateFormat
 import java.util.*
 

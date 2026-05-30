@@ -84,6 +84,7 @@ object RecommendationEngine {
                 totalValue += item.value
             } else {
                 val remaining = capacity - currentWeight
+                // divide by zero protection
                 if (item.weight > 0) totalValue += item.value * (remaining / item.weight)
                 break
             }

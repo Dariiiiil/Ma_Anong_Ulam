@@ -111,8 +111,8 @@ fun IngredientInputScreen(
     // Update isNonPerishable if food definition changes
     LaunchedEffect(selectedFood) {
         selectedFood?.let {
+            isNonPerishable = it.isImperishable
             if (it.isImperishable) {
-                isNonPerishable = true
                 shelfLifeDays = ""
             }
         }
@@ -338,10 +338,10 @@ fun IngredientInputScreen(
                                             onClick = {
                                                 selectedFood = definition
                                                 foodSearch = definition.name
-                                                unit = when (definition.unitType) {
-                                                    "VOLUME" -> "ml"
-                                                    else -> "g"
-                                                }
+                                                unit = if (definition.unitType == "VOLUME") "ml" else "g"
+                                                // Refresh attributes based on definition
+                                                isNonPerishable = definition.isImperishable
+                                                shelfLifeDays = ""
                                                 expanded = false
                                             },
                                             trailingIcon = {

@@ -214,10 +214,8 @@ fun RecipeInputScreen(
                                                         DropdownMenuItem(
                                                             text = { Text(definition.name) },
                                                             onClick = {
-                                                                ingredients[index] = Triple(definition.name, item.second, when(definition.unitType) {
-                                                                    "VOLUME" -> "ml"
-                                                                    else -> "g"
-                                                                })
+                                                                val newUnit = if (definition.unitType == "VOLUME") "ml" else "g"
+                                                                ingredients[index] = Triple(definition.name, item.second, newUnit)
                                                                 foodSearch = definition.name
                                                                 expanded = false
                                                             }

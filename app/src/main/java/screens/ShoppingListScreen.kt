@@ -293,10 +293,7 @@ fun ShoppingListScreen(
                                         onClick = {
                                             selectedFood = definition
                                             foodSearch = definition.name
-                                            addUnit = when (definition.unitType) {
-                                                "VOLUME" -> "ml"
-                                                else -> "g"
-                                            }
+                                            addUnit = if (definition.unitType == "VOLUME") "ml" else "g"
                                             expanded = false
                                         }
                                     )

@@ -7,6 +7,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,6 +16,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.maanongulam.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +31,13 @@ fun RestockScreen(
     var itemToRestock by remember { mutableStateOf<RestockItem?>(null) }
     var restockQuantity by remember { mutableStateOf("") }
     var restockUnit by remember { mutableStateOf("") }
+    var isRefreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val swipeEnabled = LocalPagerSwipeEnabled.current
+
+    LaunchedEffect(itemToRestock) {
+        swipeEnabled.value = itemToRestock == null
+    }
 
     val restockList = remember(ingredients, foodDefinitions) {
         foodDefinitions.mapNotNull { definition ->
@@ -55,50 +65,62 @@ fun RestockScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(text = "Restock Needed", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(text = "Items that are low or out of stock", style = MaterialTheme.typography.bodyMedium)
-
-        if (restockList.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("All stocked up! 🎉", style = MaterialTheme.typography.titleMedium)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            scope.launch {
+                isRefreshing = true
+                delay(500) // Brief delay for visual feedback
+                isRefreshing = false
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(restockList) { item ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+        },
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(text = "Restock Needed", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(text = "Items that are low or out of stock", style = MaterialTheme.typography.bodyMedium)
+
+            if (restockList.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("All stocked up! 🎉", style = MaterialTheme.typography.titleMedium)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(restockList) { item ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = item.definition.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                                val statusText = if (item.isOutOfStock) "OUT OF STOCK" else "LOW STOCK (${UnitConverter.formatDisplay(item.currentQuantity, item.currentUnit)})"
-                                Text(
-                                    text = statusText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (item.isOutOfStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            
-                            IconButton(onClick = { 
-                                itemToRestock = item
-                                restockUnit = item.currentUnit
-                                restockQuantity = ""
-                            }) {
-                                Icon(Icons.Default.AddShoppingCart, contentDescription = "Add to Shopping List", tint = MaterialTheme.colorScheme.primary)
+                            Row(
+                                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(text = item.definition.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                    val statusText = if (item.isOutOfStock) "OUT OF STOCK" else "LOW STOCK (${UnitConverter.formatDisplay(item.currentQuantity, item.currentUnit)})"
+                                    Text(
+                                        text = statusText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (item.isOutOfStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                
+                                IconButton(onClick = { 
+                                    itemToRestock = item
+                                    restockUnit = item.currentUnit
+                                    restockQuantity = ""
+                                }) {
+                                    Icon(Icons.Default.AddShoppingCart, contentDescription = "Add to Shopping List", tint = MaterialTheme.colorScheme.primary)
+                                }
                             }
                         }
                     }

@@ -43,7 +43,13 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     private val _pendingShoppingDuplicates = MutableStateFlow<List<Pair<ShoppingItem, Ingredient>>?>(null)
     val pendingShoppingDuplicates: StateFlow<List<Pair<ShoppingItem, Ingredient>>?> = _pendingShoppingDuplicates.asStateFlow()
 
-    fun cookRecipe(recipe: Recipe) {
+    private val _lastCookingDeductions = MutableStateFlow<List<Pair<IngredientEntity, Double>>?>(null)
+    val lastCookingDeductions: StateFlow<List<Pair<IngredientEntity, Double>>?> = _lastCookingDeductions.asStateFlow()
+
+    private val _lastFailedRecipe = MutableStateFlow<Recipe?>(null)
+    val lastFailedRecipe: StateFlow<Recipe?> = _lastFailedRecipe.asStateFlow()
+
+    fun cookRecipe(recipe: Recipe, force: Boolean = false) {
         viewModelScope.launch {
             val log = mutableListOf<String>()
             val shortages = mutableListOf<String>()
@@ -54,32 +60,34 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                 val totalAvailableBase = matchingBatches.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
                 val neededBase = UnitConverter.toBaseUnit(needed.quantity, needed.unit)
 
-                if (totalAvailableBase < neededBase) {
+                if (totalAvailableBase < (neededBase - 0.001)) {
                     val shortfallBase = neededBase - totalAvailableBase
                     val shortfallDisplay = UnitConverter.formatDisplay(UnitConverter.fromBaseUnit(shortfallBase, needed.unit), needed.unit)
                     shortages.add("❌ ${needed.name}: Short by $shortfallDisplay")
-                } else {
-                    val sortedBatches = matchingBatches.sortedWith(compareBy<IngredientEntity> { it.expirationDate == 0L }.thenBy { it.expirationDate })
-                    var remainingToDeductBase = neededBase
-                    val plannedDeductions = mutableListOf<Pair<IngredientEntity, Double>>()
-                    for (batch in sortedBatches) {
-                        if (remainingToDeductBase <= 0) break
-                        val batchBase = UnitConverter.toBaseUnit(batch.quantity, batch.unit)
-                        val deductFromThisBatchBase = minOf(batchBase, remainingToDeductBase)
-                        val deductInOriginalUnit = UnitConverter.fromBaseUnit(deductFromThisBatchBase, batch.unit)
-                        plannedDeductions.add(batch to deductInOriginalUnit)
-                        remainingToDeductBase -= deductFromThisBatchBase
-                    }
-                    ingredientsToDeduct[needed.name] = plannedDeductions
                 }
+                
+                val sortedBatches = matchingBatches.sortedWith(compareBy<IngredientEntity> { it.expirationDate == 0L }.thenBy { it.expirationDate })
+                var remainingToDeductBase = neededBase
+                val plannedDeductions = mutableListOf<Pair<IngredientEntity, Double>>()
+                for (batch in sortedBatches) {
+                    if (remainingToDeductBase <= 0) break
+                    val batchBase = UnitConverter.toBaseUnit(batch.quantity, batch.unit)
+                    val deductFromThisBatchBase = minOf(batchBase, remainingToDeductBase)
+                    val deductInOriginalUnit = UnitConverter.fromBaseUnit(deductFromThisBatchBase, batch.unit)
+                    plannedDeductions.add(batch to deductInOriginalUnit)
+                    remainingToDeductBase -= deductFromThisBatchBase
+                }
+                ingredientsToDeduct[needed.name] = plannedDeductions
             }
 
-            if (shortages.isNotEmpty()) {
-                log.add("Cannot cook ${recipe.name}!")
+            if (shortages.isNotEmpty() && !force) {
+                log.add("Cannot cook ${recipe.name} fully!")
                 log.addAll(shortages)
-                log.add("\nInventory was NOT updated.")
+                log.add("\nWould you like to cook anyway using available stock?")
+                _lastFailedRecipe.value = recipe
             } else {
-                log.add("Cooking ${recipe.name}...")
+                log.add(if (force) "Cooking ${recipe.name} with missing items..." else "Cooking ${recipe.name}...")
+                val allDeductions = mutableListOf<Pair<IngredientEntity, Double>>()
                 database.withTransaction {
                     ingredientsToDeduct.forEach { (name, deductions) ->
                         var totalUsedInNeededUnit = 0.0
@@ -89,14 +97,41 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                             if (newQty <= 0.001) dao.deleteIngredient(entity)
                             else dao.insertOrUpdateIngredient(entity.copy(quantity = newQty))
                             totalUsedInNeededUnit += UnitConverter.fromBaseUnit(UnitConverter.toBaseUnit(amountToDeduct, entity.unit), neededUnit)
+                            allDeductions.add(entity to amountToDeduct)
                         }
                         log.add("✅ $name: Used ${UnitConverter.formatDisplay(totalUsedInNeededUnit, neededUnit)}")
                     }
                     dao.insertCookingLog(CookingLogEntity(recipeName = recipe.name, timestamp = System.currentTimeMillis()))
                 }
-                log.add("\nEnjoy your meal! Inventory updated.")
+                _lastCookingDeductions.value = allDeductions
+                _lastFailedRecipe.value = null
+                log.add("\nInventory updated.")
             }
             _cookingLog.value = log
+        }
+    }
+
+    fun undoCook() {
+        val deductions = _lastCookingDeductions.value ?: return
+        viewModelScope.launch {
+            database.withTransaction {
+                deductions.forEach { (originalEntity, amount) ->
+                    val current = dao.getIngredientById(originalEntity.id)
+                    if (current != null) {
+                        dao.insertOrUpdateIngredient(current.copy(quantity = current.quantity + amount))
+                    } else {
+                        // Batch was deleted because it reached 0
+                        dao.insertOrUpdateIngredient(originalEntity.copy(quantity = amount))
+                    }
+                }
+                // Also remove the last cooking log entry
+                val lastLog = dao.getAllCookingLogsOnce().firstOrNull()
+                if (lastLog != null) {
+                    dao.deleteCookingLog(lastLog)
+                }
+            }
+            _lastCookingDeductions.value = null
+            _cookingLog.value = listOf("Undo successful! Ingredients restored.")
         }
     }
 

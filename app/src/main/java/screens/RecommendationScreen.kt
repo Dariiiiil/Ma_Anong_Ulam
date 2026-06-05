@@ -5,8 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,6 +19,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.maanongulam.RecommendationViewModel
 import com.example.maanongulam.RecommendedRecipe
 import com.example.maanongulam.UnitConverter
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -28,16 +32,25 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
     val historyLogs by viewModel.allCookingLogs.collectAsState()
     val cookingLog by viewModel.cookingLog.collectAsState()
     val pendingDuplicates by viewModel.pendingShoppingDuplicates.collectAsState()
+    val lastDeductions by viewModel.lastCookingDeductions.collectAsState()
+    val lastFailedRecipe by viewModel.lastFailedRecipe.collectAsState()
 
+    var isRefreshing by remember { mutableStateOf(false) }
     val isNotificationsVisible = remember { mutableStateOf(true) }
     val isSafetyAlertExpanded = remember { mutableStateOf(false) }
     val isLowStockAlertExpanded = remember { mutableStateOf(false) }
     val showDeleteHistoryDialog = remember { mutableStateOf(false) }
     val showHistorySheet = remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    val swipeEnabled = LocalPagerSwipeEnabled.current
+
+    LaunchedEffect(cookingLog, showHistorySheet.value, showDeleteHistoryDialog.value, pendingDuplicates) {
+        swipeEnabled.value = cookingLog == null && !showHistorySheet.value && !showDeleteHistoryDialog.value && pendingDuplicates == null
+    }
 
     LaunchedEffect(recommendations) {
-        if (recommendations.isNotEmpty()) viewModel.runAutoRestockCheck()
+        // Auto-restock check disabled per user request
     }
 
     if (pendingDuplicates != null) {
@@ -63,9 +76,22 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
     if (cookingLog != null) {
         AlertDialog(
             onDismissRequest = { viewModel.clearCookingLog() },
-            title = { Text("Cooking Report") },
+            title = { Text(if (lastFailedRecipe != null) "Incomplete Ingredients" else "Cooking Report") },
             text = { Column { cookingLog?.forEach { Text(text = it, style = MaterialTheme.typography.bodyMedium) } } },
-            confirmButton = { TextButton(onClick = { viewModel.clearCookingLog() }) { Text("OK") } }
+            confirmButton = {
+                if (lastFailedRecipe != null) {
+                    Button(onClick = { viewModel.cookRecipe(lastFailedRecipe!!, force = true) }) {
+                        Text("Cook Anyway")
+                    }
+                } else {
+                    TextButton(onClick = { viewModel.clearCookingLog() }) { Text("OK") }
+                }
+            },
+            dismissButton = {
+                if (lastFailedRecipe != null) {
+                    TextButton(onClick = { viewModel.clearCookingLog() }) { Text("Cancel") }
+                }
+            }
         )
     }
 
@@ -110,7 +136,16 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("Ulam Recommendations") },
                 actions = {
-                    IconButton(onClick = { viewModel.runAutoRestockCheck() }) { Icon(Icons.Default.Refresh, null) }
+                    TextButton(
+                        onClick = { viewModel.undoCook() },
+                        enabled = lastDeductions != null
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.AutoMirrored.Filled.Undo, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Undo Cook")
+                        }
+                    }
                     IconButton(onClick = { showHistorySheet.value = true }) {
                         BadgedBox(badge = { if (historyLogs.isNotEmpty()) Badge { Text(historyLogs.size.toString()) } }) { Icon(Icons.Default.History, null) }
                     }
@@ -118,35 +153,48 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-            val spoiled = recommendations.flatMap { it.reasons }.filter { it.contains("💀 Contains spoiled") }.map { it.replace("💀 Contains spoiled: ", "") }.distinct()
-            val lowStock = allIngredients.filter { UnitConverter.isLowStock(it.quantity, it.unit, it.category) }
-
-            if (spoiled.isNotEmpty() || lowStock.isNotEmpty()) {
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Alerts & Notifications", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
-                    TextButton(onClick = { isNotificationsVisible.value = !isNotificationsVisible.value }) { Text(if (isNotificationsVisible.value) "Hide All" else "Show All", style = MaterialTheme.typography.labelSmall) }
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                scope.launch {
+                    isRefreshing = true
+                    // Just a visual refresh delay, no auto-adding items
+                    delay(500)
+                    isRefreshing = false 
                 }
-                AnimatedVisibility(visible = isNotificationsVisible.value) {
-                    Column {
-                        if (spoiled.isNotEmpty()) AlertCard("Safety Alert: Spoiled items!", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.error, isSafetyAlertExpanded) {
-                            spoiled.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
-                        }
-                        if (lowStock.isNotEmpty()) AlertCard("Low Stock: ${lowStock.size} items", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.secondary, isLowStockAlertExpanded) {
-                            lowStock.forEach { Text("• ${it.name} (${UnitConverter.formatDisplay(it.quantity, it.unit)})", style = MaterialTheme.typography.bodySmall) }
+            },
+            modifier = Modifier.padding(padding)
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                val spoiled = recommendations.flatMap { it.reasons }.filter { it.contains("💀 Contains spoiled") }.map { it.replace("💀 Contains spoiled: ", "") }.distinct()
+                val lowStock = allIngredients.filter { UnitConverter.isLowStock(it.quantity, it.unit, it.category) }
+
+                if (spoiled.isNotEmpty() || lowStock.isNotEmpty()) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Alerts & Notifications", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.outline)
+                        TextButton(onClick = { isNotificationsVisible.value = !isNotificationsVisible.value }) { Text(if (isNotificationsVisible.value) "Hide All" else "Show All", style = MaterialTheme.typography.labelSmall) }
+                    }
+                    AnimatedVisibility(visible = isNotificationsVisible.value) {
+                        Column {
+                            if (spoiled.isNotEmpty()) AlertCard("Safety Alert: Spoiled items!", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.error, isSafetyAlertExpanded) {
+                                spoiled.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                            }
+                            if (lowStock.isNotEmpty()) AlertCard("Low Stock: ${lowStock.size} items", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.secondary, isLowStockAlertExpanded) {
+                                lowStock.forEach { Text("• ${it.name} (${UnitConverter.formatDisplay(it.quantity, it.unit)})", style = MaterialTheme.typography.bodySmall) }
+                            }
                         }
                     }
                 }
-            }
 
-            if (recommendations.isEmpty()) Box(Modifier.fillMaxSize(), Alignment.Center) { Text("No recommendations.") }
-            else LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
-                itemsIndexed(recommendations) { index, item ->
-                    if (index == 0) {
-                        Text("Ulam of the Day", style = MaterialTheme.typography.titleLarge, color = if (item.hasSpoiledIngredients) Color.Gray else MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
-                        RecipeCard(item, true, { viewModel.cookRecipe(item.recipe) }, { viewModel.addMissingToShoppingList(item.missingIngredients) })
-                        if (recommendations.size > 1) Text("Runners-up", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 8.dp))
-                    } else RecipeCard(item, false, { viewModel.cookRecipe(item.recipe) }, { viewModel.addMissingToShoppingList(item.missingIngredients) })
+                if (recommendations.isEmpty()) Box(Modifier.fillMaxSize(), Alignment.Center) { Text("No recommendations.") }
+                else LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+                    itemsIndexed(recommendations) { index, item ->
+                        if (index == 0) {
+                            Text("Ulam of the Day", style = MaterialTheme.typography.titleLarge, color = if (item.hasSpoiledIngredients) Color.Gray else MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
+                            RecipeCard(item, true) { viewModel.cookRecipe(item.recipe) }
+                            if (recommendations.size > 1) Text("Runner-ups", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 8.dp))
+                        } else RecipeCard(item, false) { viewModel.cookRecipe(item.recipe) }
+                    }
                 }
             }
         }
@@ -169,7 +217,7 @@ fun AlertCard(title: String, containerColor: Color, contentColor: Color, expande
 }
 
 @Composable
-fun RecipeCard(item: RecommendedRecipe, isTop: Boolean, onCook: () -> Unit, onShop: () -> Unit) {
+fun RecipeCard(item: RecommendedRecipe, isTop: Boolean, onCook: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = when { item.hasSpoiledIngredients -> MaterialTheme.colorScheme.surfaceVariant; isTop -> MaterialTheme.colorScheme.primaryContainer; else -> MaterialTheme.colorScheme.surface })) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -180,7 +228,6 @@ fun RecipeCard(item: RecommendedRecipe, isTop: Boolean, onCook: () -> Unit, onSh
             if (!item.hasSpoiledIngredients) Text("Urgency Score: ${String.format(Locale.getDefault(), "%.4f", item.urgencyScore)}", style = MaterialTheme.typography.bodySmall)
             item.reasons.forEach { Text(it, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium) }
             Row(Modifier.fillMaxWidth().padding(top = 16.dp), Arrangement.End) {
-                if (item.isInsufficient && !item.hasSpoiledIngredients) TextButton(onShop) { Text("Add to Shopping List") }
                 Button(onCook, enabled = !item.hasSpoiledIngredients) { Text("Cook This") }
             }
         }

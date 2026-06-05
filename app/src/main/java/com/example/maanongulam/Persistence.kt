@@ -163,6 +163,9 @@ interface MaAnongUlamDao {
     @Query("SELECT * FROM ingredients WHERE name = :name LIMIT 1")
     suspend fun getIngredientByName(name: String): IngredientEntity?
 
+    @Query("SELECT * FROM ingredients WHERE id = :id")
+    suspend fun getIngredientById(id: Int): IngredientEntity?
+
     @Query("DELETE FROM ingredients")
     suspend fun deleteAllIngredients()
 
@@ -186,6 +189,12 @@ interface MaAnongUlamDao {
 
     @Query("SELECT * FROM cooking_logs ORDER BY timestamp DESC")
     fun getAllCookingLogs(): Flow<List<CookingLogEntity>>
+
+    @Query("SELECT * FROM cooking_logs ORDER BY timestamp DESC")
+    suspend fun getAllCookingLogsOnce(): List<CookingLogEntity>
+
+    @Delete
+    suspend fun deleteCookingLog(log: CookingLogEntity)
 
     @Query("DELETE FROM cooking_logs")
     suspend fun deleteAllCookingLogs()

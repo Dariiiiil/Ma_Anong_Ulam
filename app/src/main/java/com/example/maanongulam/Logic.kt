@@ -153,7 +153,6 @@ object RecipeRecommendationEngine {
 
             if (reasons.isEmpty()) {
                 if (missing.isEmpty()) reasons.add("✅ Ready to cook: All items in stock")
-                else missing.forEach { reasons.add("⚠️ Need ${UnitConverter.formatDisplay(it.quantity, it.unit)} more ${it.name}") }
             }
             RecommendedRecipe(recipe, score, missing.isNotEmpty(), reasons, hasSpoiled, missing)
         }.sortedByDescending { it.urgencyScore }

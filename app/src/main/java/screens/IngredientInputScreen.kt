@@ -39,6 +39,11 @@ fun IngredientInputScreen(
     var showAddNewFoodInternal by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var editingIngredient by remember { mutableStateOf<IngredientEntity?>(null) }
+    val swipeEnabled = LocalPagerSwipeEnabled.current
+
+    LaunchedEffect(showAddIngredientWindow) {
+        swipeEnabled.value = !showAddIngredientWindow
+    }
 
     // State for Adding/Editing Ingredient
     var selectedFood by remember { mutableStateOf<FoodDefinitionEntity?>(null) }
@@ -53,7 +58,6 @@ fun IngredientInputScreen(
     var newFoodName by remember { mutableStateOf("") }
     var newFoodCategory by remember { mutableStateOf("Others") }
     var newFoodUnitType by remember { mutableStateOf("MASS") } // MASS, VOLUME
-    var newFoodIsImperishable by remember { mutableStateOf(false) }
 
     val dateText = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(datePickerState.selectedDateMillis ?: System.currentTimeMillis()))
 
@@ -82,7 +86,6 @@ fun IngredientInputScreen(
         editingIngredient = null
         showAddIngredientWindow = false
         showAddNewFoodInternal = false
-        newFoodIsImperishable = false
     }
 
     // Handle Edit
@@ -148,16 +151,25 @@ fun IngredientInputScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "Current Inventory", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(text = "Expiring Soon", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 IconButton(onClick = onExpandList) {
                     Icon(Icons.Default.OpenInFull, contentDescription = "Expand List")
                 }
             }
 
             val filteredIngredients = remember(ingredients, searchQuery) {
-                ingredients.filter { 
-                    it.quantity > 0 && it.name.contains(searchQuery, ignoreCase = true) 
-                }
+                val oneWeekMs = 7 * 24 * 60 * 60 * 1000L
+                val currentTime = System.currentTimeMillis()
+                
+                val matchingPerishable = ingredients.filter { 
+                    it.quantity > 0 && 
+                    it.name.contains(searchQuery, ignoreCase = true) &&
+                    it.expirationDate > 0
+                }.sortedBy { it.expirationDate }
+
+                val soon = matchingPerishable.filter { (it.expirationDate - currentTime) <= oneWeekMs }
+                
+                if (soon.size >= 5) soon else matchingPerishable.take(5)
             }
 
             LazyColumn(
@@ -245,11 +257,6 @@ fun IngredientInputScreen(
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold
                             )
-                            if (editingIngredient == null && !showAddNewFoodInternal) {
-                                IconButton(onClick = { showAddNewFoodInternal = true }) {
-                                    Icon(Icons.Default.AddCircleOutline, "Add New Food Option")
-                                }
-                            }
                         }
 
                         if (showAddNewFoodInternal) {
@@ -281,18 +288,12 @@ fun IngredientInputScreen(
                                     FilterChip(selected = newFoodUnitType == "VOLUME", onClick = { newFoodUnitType = "VOLUME" }, label = { Text("Volume (ml/L)") })
                                 }
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(checked = newFoodIsImperishable, onCheckedChange = { newFoodIsImperishable = it })
-                                    Text("Imperishable (No Expiry Ever)")
-                                }
-
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     TextButton(onClick = { showAddNewFoodInternal = false }, modifier = Modifier.weight(1f)) { Text("Back") }
                                     Button(
                                         onClick = {
-                                            viewModel.addFoodDefinition(newFoodName, newFoodUnitType, newFoodCategory, newFoodIsImperishable)
+                                            viewModel.addFoodDefinition(newFoodName, newFoodUnitType, newFoodCategory, false)
                                             newFoodName = ""
-                                            newFoodIsImperishable = false
                                             showAddNewFoodInternal = false
                                         },
                                         modifier = Modifier.weight(1f),
@@ -398,27 +399,6 @@ fun IngredientInputScreen(
                                         }
                                     }
                                 }
-                            }
-
-                            val isFoodImperishable = selectedFood?.isImperishable == true
-
-                            // Imperishable Checkbox (Hidden or locked if food definition says so)
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().then(
-                                    if (!isFoodImperishable) Modifier.clickable { isNonPerishable = !isNonPerishable } else Modifier
-                                )
-                            ) {
-                                Checkbox(
-                                    checked = isNonPerishable,
-                                    onCheckedChange = { if (!isFoodImperishable) isNonPerishable = it },
-                                    enabled = !isFoodImperishable
-                                )
-                                Text(
-                                    text = if (isFoodImperishable) "Imperishable (Locked)" else "Imperishable",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = if (isFoodImperishable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
                             }
 
                             // Shelf Life (Only shown if NOT imperishable)

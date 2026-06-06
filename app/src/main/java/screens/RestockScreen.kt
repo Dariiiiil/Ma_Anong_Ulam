@@ -19,6 +19,13 @@ import com.example.maanongulam.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+data class RestockItem(
+    val definition: FoodDefinitionEntity,
+    val currentQuantity: Double,
+    val currentUnit: String,
+    val isOutOfStock: Boolean
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RestockScreen(
@@ -65,61 +72,72 @@ fun RestockScreen(
         }
     }
 
-    PullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = {
-            scope.launch {
-                isRefreshing = true
-                delay(500) // Brief delay for visual feedback
-                isRefreshing = false
-            }
-        },
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(text = "Restock Needed", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text(text = "Items that are low or out of stock", style = MaterialTheme.typography.bodyMedium)
-
-            if (restockList.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("All stocked up! 🎉", style = MaterialTheme.typography.titleMedium)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Restock Center", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        }
+    ) { padding ->
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                scope.launch {
+                    isRefreshing = true
+                    delay(500)
+                    isRefreshing = false
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(restockList) { item ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+            },
+            modifier = Modifier.padding(padding).fillMaxSize()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(text = "Items that are low or out of stock", style = MaterialTheme.typography.bodyMedium)
+
+                if (restockList.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("All stocked up! 🎉", style = MaterialTheme.typography.titleMedium)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(restockList) { item ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = item.definition.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                                    val statusText = if (item.isOutOfStock) "OUT OF STOCK" else "LOW STOCK (${UnitConverter.formatDisplay(item.currentQuantity, item.currentUnit)})"
-                                    Text(
-                                        text = statusText,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (item.isOutOfStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                
-                                IconButton(onClick = { 
-                                    itemToRestock = item
-                                    restockUnit = item.currentUnit
-                                    restockQuantity = ""
-                                }) {
-                                    Icon(Icons.Default.AddShoppingCart, contentDescription = "Add to Shopping List", tint = MaterialTheme.colorScheme.primary)
+                                Row(
+                                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = item.definition.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                        val statusText = if (item.isOutOfStock) "OUT OF STOCK" else "LOW STOCK (${UnitConverter.formatDisplay(item.currentQuantity, item.currentUnit)})"
+                                        Text(
+                                            text = statusText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (item.isOutOfStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    
+                                    IconButton(onClick = { 
+                                        itemToRestock = item
+                                        restockUnit = item.currentUnit
+                                        restockQuantity = ""
+                                    }) {
+                                        Icon(Icons.Default.AddShoppingCart, contentDescription = "Add to Shopping List", tint = MaterialTheme.colorScheme.primary)
+                                    }
                                 }
                             }
                         }
@@ -195,10 +213,3 @@ fun RestockScreen(
         )
     }
 }
-
-data class RestockItem(
-    val definition: FoodDefinitionEntity,
-    val currentQuantity: Double,
-    val currentUnit: String,
-    val isOutOfStock: Boolean
-)

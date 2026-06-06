@@ -3,7 +3,6 @@ package screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -13,7 +12,6 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -34,7 +32,7 @@ fun IngredientInputScreen(
 ) {
     val ingredients by viewModel.ingredients.collectAsState()
     val foodDefinitions by viewModel.foodDefinitions.collectAsState()
-    
+
     var showAddIngredientWindow by remember { mutableStateOf(false) }
     var showAddNewFoodInternal by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -59,7 +57,8 @@ fun IngredientInputScreen(
     var newFoodCategory by remember { mutableStateOf("Others") }
     var newFoodUnitType by remember { mutableStateOf("MASS") } // MASS, VOLUME
 
-    val dateText = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(datePickerState.selectedDateMillis ?: System.currentTimeMillis()))
+    val dateText = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+        .format(Date(datePickerState.selectedDateMillis ?: System.currentTimeMillis()))
 
     // Sync date picker with shelf life days
     LaunchedEffect(shelfLifeDays) {
@@ -119,115 +118,140 @@ fun IngredientInputScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = { showAddIngredientWindow = true },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Ingredient")
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("My Inventory", fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                )
             }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                label = { Text("Search Inventory") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, null) }
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "Expiring Soon", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                IconButton(onClick = onExpandList) {
-                    Icon(Icons.Default.OpenInFull, contentDescription = "Expand List")
-                }
-            }
-
-            val filteredIngredients = remember(ingredients, searchQuery) {
-                val oneWeekMs = 7 * 24 * 60 * 60 * 1000L
-                val currentTime = System.currentTimeMillis()
-                
-                val matchingPerishable = ingredients.filter { 
-                    it.quantity > 0 && 
-                    it.name.contains(searchQuery, ignoreCase = true) &&
-                    it.expirationDate > 0
-                }.sortedBy { it.expirationDate }
-
-                val soon = matchingPerishable.filter { (it.expirationDate - currentTime) <= oneWeekMs }
-                
-                if (soon.size >= 5) soon else matchingPerishable.take(5)
-            }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(filteredIngredients) { ingredient ->
-                    val isLocked = foodDefinitions.find { it.name.equals(ingredient.name, true) }?.isImperishable == true
-                    
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { if (!isLocked) editingIngredient = ingredient },
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                Button(
+                    onClick = { showAddIngredientWindow = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Add Ingredient")
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search Inventory") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Search, null) }
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Expiring Soon",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onExpandList) {
+                        Icon(Icons.Default.OpenInFull, contentDescription = "Expand List")
+                    }
+                }
+
+                val filteredIngredients = remember(ingredients, searchQuery) {
+                    val oneWeekMs = 7 * 24 * 60 * 60 * 1000L
+                    val currentTime = System.currentTimeMillis()
+
+                    val matchingPerishable = ingredients.filter {
+                        it.quantity > 0 &&
+                                it.name.contains(searchQuery, ignoreCase = true) &&
+                                it.expirationDate > 0
+                    }.sortedBy { it.expirationDate }
+
+                    val soon =
+                        matchingPerishable.filter { (it.expirationDate - currentTime) <= oneWeekMs }
+
+                    if (soon.size >= 5) soon else matchingPerishable.take(5)
+                }
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredIngredients) { ingredient ->
+                        val isLocked = foodDefinitions.find {
+                            it.name.equals(ingredient.name, true)
+                        }?.isImperishable == true
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { if (!isLocked) editingIngredient = ingredient },
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = ingredient.name, fontWeight = FontWeight.Bold)
-                                    if (isLocked) {
-                                        Icon(Icons.Default.Lock, contentDescription = "Locked", modifier = Modifier.size(16.dp).padding(start = 4.dp), tint = MaterialTheme.colorScheme.secondary)
-                                    }
-                                    if (UnitConverter.isLowStock(ingredient.quantity, ingredient.unit, ingredient.category)) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Surface(
-                                            color = MaterialTheme.colorScheme.errorContainer,
-                                            shape = MaterialTheme.shapes.extraSmall
-                                        ) {
-                                            Text(
-                                                text = "LOW",
-                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.error
+                            Row(
+                                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(text = ingredient.name, fontWeight = FontWeight.Bold)
+                                        if (isLocked) {
+                                            Icon(
+                                                Icons.Default.Lock,
+                                                contentDescription = "Locked",
+                                                modifier = Modifier.size(16.dp).padding(start = 4.dp),
+                                                tint = MaterialTheme.colorScheme.secondary
                                             )
                                         }
+                                        if (UnitConverter.isLowStock(ingredient.quantity, ingredient.unit, ingredient.category)) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.errorContainer,
+                                                shape = MaterialTheme.shapes.extraSmall
+                                            ) {
+                                                Text(
+                                                    text = "LOW",
+                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                        }
                                     }
+                                    Text(
+                                        text = "${UnitConverter.formatDisplay(ingredient.quantity, ingredient.unit)} • ${ingredient.category}",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    val expiryText = if (ingredient.expirationDate > 0) {
+                                        val expiry = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(ingredient.expirationDate))
+                                        "Expires: $expiry"
+                                    } else {
+                                        "Imperishable"
+                                    }
+                                    Text(
+                                        text = expiryText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
                                 }
-                                Text(
-                                    text = "${UnitConverter.formatDisplay(ingredient.quantity, ingredient.unit)} • ${ingredient.category}",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                val expiryText = if (ingredient.expirationDate > 0) {
-                                    val expiry = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(ingredient.expirationDate))
-                                    "Expires: $expiry"
-                                } else {
-                                    "Imperishable"
+                                IconButton(onClick = { viewModel.deleteIngredient(ingredient) }) {
+                                    Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
                                 }
-                                Text(
-                                    text = expiryText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            }
-                            IconButton(onClick = { viewModel.deleteIngredient(ingredient) }) {
-                                Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -269,7 +293,7 @@ fun IngredientInputScreen(
                                     label = { Text("Food Name") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                
+
                                 var catExpanded by remember { mutableStateOf(false) }
                                 val categories = listOf("Meat", "Vegetables", "Seafood", "Dairy", "Spices", "Grains", "Others")
                                 Box(modifier = Modifier.fillMaxWidth()) {
@@ -303,18 +327,16 @@ fun IngredientInputScreen(
                             }
                         } else {
                             // --- Standard Add Ingredient Form ---
-
-                            // Searchable Dropdown for Food (Relevant 4 + Add Custom)
                             var expanded by remember { mutableStateOf(false) }
                             var foodSearch by remember { mutableStateOf(selectedFood?.name ?: "") }
-                            
+
                             ExposedDropdownMenuBox(
                                 expanded = expanded,
                                 onExpandedChange = { expanded = it }
                             ) {
                                 OutlinedTextField(
                                     value = foodSearch,
-                                    onValueChange = { 
+                                    onValueChange = {
                                         foodSearch = it
                                         expanded = true
                                     },
@@ -323,15 +345,12 @@ fun IngredientInputScreen(
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                                     colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                                 )
-                                
+
                                 val filteredDefinitions = foodDefinitions
                                     .filter { it.name.contains(foodSearch, ignoreCase = true) }
                                     .take(4)
 
-                                ExposedDropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
+                                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                                     filteredDefinitions.forEach { definition ->
                                         DropdownMenuItem(
                                             text = { Text(definition.name) },
@@ -339,15 +358,12 @@ fun IngredientInputScreen(
                                                 selectedFood = definition
                                                 foodSearch = definition.name
                                                 unit = if (definition.unitType == "VOLUME") "ml" else "g"
-                                                // Refresh attributes based on definition
                                                 isNonPerishable = definition.isImperishable
                                                 shelfLifeDays = ""
                                                 expanded = false
                                             },
                                             trailingIcon = {
-                                                IconButton(onClick = { 
-                                                    viewModel.deleteFoodDefinition(definition)
-                                                }) {
+                                                IconButton(onClick = { viewModel.deleteFoodDefinition(definition) }) {
                                                     Icon(Icons.Default.Close, contentDescription = "Delete Option", modifier = Modifier.size(16.dp))
                                                 }
                                             }
@@ -365,14 +381,10 @@ fun IngredientInputScreen(
                                 }
                             }
 
-                            // Quantity and Unit
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(
                                     value = quantity,
-                                    onValueChange = { 
+                                    onValueChange = {
                                         if (it.isEmpty() || it.toDoubleOrNull() != null || it.endsWith(".")) {
                                             quantity = it
                                         }
@@ -382,15 +394,11 @@ fun IngredientInputScreen(
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     singleLine = true
                                 )
-                                
+
                                 val unitOptions = if (selectedFood?.unitType == "VOLUME") listOf("ml", "L") else listOf("g", "kg")
-                                
                                 var unitExpanded by remember { mutableStateOf(false) }
                                 Box(modifier = Modifier.weight(0.6f)) {
-                                    OutlinedButton(
-                                        onClick = { unitExpanded = true },
-                                        modifier = Modifier.fillMaxWidth().height(56.dp)
-                                    ) {
+                                    OutlinedButton(onClick = { unitExpanded = true }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                                         Text(unit)
                                     }
                                     DropdownMenu(expanded = unitExpanded, onDismissRequest = { unitExpanded = false }) {
@@ -401,36 +409,16 @@ fun IngredientInputScreen(
                                 }
                             }
 
-                            // Shelf Life (Only shown if NOT imperishable)
                             if (!isNonPerishable) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("Shelf Life:", style = MaterialTheme.typography.labelLarge)
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        FilterChip(
-                                            selected = shelfLifeDays == "7",
-                                            onClick = { shelfLifeDays = "7" },
-                                            label = { Text("1 Week", style = MaterialTheme.typography.labelSmall) }
-                                        )
-                                        FilterChip(
-                                            selected = shelfLifeDays == "14",
-                                            onClick = { shelfLifeDays = "14" },
-                                            label = { Text("2 Weeks", style = MaterialTheme.typography.labelSmall) }
-                                        )
-                                        FilterChip(
-                                            selected = shelfLifeDays == "30",
-                                            onClick = { shelfLifeDays = "30" },
-                                            label = { Text("1 Month", style = MaterialTheme.typography.labelSmall) }
-                                        )
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        FilterChip(selected = shelfLifeDays == "7", onClick = { shelfLifeDays = "7" }, label = { Text("1 Week", style = MaterialTheme.typography.labelSmall) })
+                                        FilterChip(selected = shelfLifeDays == "14", onClick = { shelfLifeDays = "14" }, label = { Text("2 Weeks", style = MaterialTheme.typography.labelSmall) })
+                                        FilterChip(selected = shelfLifeDays == "30", onClick = { shelfLifeDays = "30" }, label = { Text("1 Month", style = MaterialTheme.typography.labelSmall) })
                                     }
-                                    
-                                    OutlinedButton(
-                                        onClick = { showDatePicker = true },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = MaterialTheme.shapes.small
-                                    ) {
+
+                                    OutlinedButton(onClick = { showDatePicker = true }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
                                         Icon(Icons.Default.CalendarToday, null, modifier = Modifier.size(18.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(dateText)
@@ -445,23 +433,16 @@ fun IngredientInputScreen(
                                 ) { DatePicker(state = datePickerState) }
                             }
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                TextButton(onClick = { resetIngredientForm() }, modifier = Modifier.weight(1f)) {
-                                    Text("Cancel")
-                                }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                TextButton(onClick = { resetIngredientForm() }, modifier = Modifier.weight(1f)) { Text("Cancel") }
                                 Button(
                                     onClick = {
                                         val food = selectedFood ?: return@Button
                                         val qty = quantity.toDoubleOrNull() ?: 0.0
                                         val expiry = if (isNonPerishable) 0L else (datePickerState.selectedDateMillis ?: System.currentTimeMillis())
-                                        
+
                                         if (editingIngredient != null) {
-                                            viewModel.updateIngredient(editingIngredient!!.copy(
-                                                name = food.name, quantity = qty, unit = unit, expirationDate = expiry, category = food.category
-                                            ))
+                                            viewModel.updateIngredient(editingIngredient!!.copy(name = food.name, quantity = qty, unit = unit, expirationDate = expiry, category = food.category))
                                         } else {
                                             viewModel.addIngredient(food.name, qty, unit, expiry, food.category)
                                         }
@@ -469,9 +450,7 @@ fun IngredientInputScreen(
                                     },
                                     modifier = Modifier.weight(1.5f),
                                     enabled = selectedFood != null && quantity.isNotBlank()
-                                ) {
-                                    Text("Save")
-                                }
+                                ) { Text("Save") }
                             }
                         }
                     }

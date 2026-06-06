@@ -68,7 +68,7 @@ fun IngredientListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Full Inventory") },
+                title = { Text("Full Inventory", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -323,7 +323,7 @@ fun RecipeListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("All Recipes") },
+                title = { Text("All Recipes", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

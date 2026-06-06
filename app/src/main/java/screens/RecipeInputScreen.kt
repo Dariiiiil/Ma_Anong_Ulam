@@ -62,76 +62,89 @@ fun RecipeInputScreen(
         showRecipeWindow = false
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Button(
-            onClick = { showRecipeWindow = true },
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Create New Recipe")
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Recipe Book", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
         }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            label = { Text("Search Recipes") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Search, null) }
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "Recipe List", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            IconButton(onClick = onExpandList) {
-                Icon(Icons.Default.OpenInFull, contentDescription = "Expand List")
-            }
-        }
-
-        val filteredRecipes = remember(recipes, searchQuery) {
-            recipes.filter { it.name.contains(searchQuery, ignoreCase = true) }
-        }
-
-        LazyColumn(
-            modifier = Modifier.weight(1f),
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(filteredRecipes) { recipe ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { editingRecipe = recipe },
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            Button(
+                onClick = { showRecipeWindow = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Create New Recipe")
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Search Recipes") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, null) }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Recipe List", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                IconButton(onClick = onExpandList) {
+                    Icon(Icons.Default.OpenInFull, contentDescription = "Expand List")
+                }
+            }
+
+            val filteredRecipes = remember(recipes, searchQuery) {
+                recipes.filter { it.name.contains(searchQuery, ignoreCase = true) }
+            }
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filteredRecipes) { recipe ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { editingRecipe = recipe },
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = recipe.name, fontWeight = FontWeight.Bold)
-                            Text(
-                                text = "${recipe.ingredients.size} Ingredients",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                        IconButton(onClick = { viewModel.deleteRecipe(recipe) }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Delete",
-                                tint = MaterialTheme.colorScheme.error
-                            )
+                        Row(
+                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = recipe.name, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "${recipe.ingredients.size} Ingredients",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            IconButton(onClick = { viewModel.deleteRecipe(recipe) }) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                 }

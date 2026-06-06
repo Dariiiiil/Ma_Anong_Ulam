@@ -12,8 +12,15 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.maanongulam.RecommendationViewModel
@@ -44,6 +51,9 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val swipeEnabled = LocalPagerSwipeEnabled.current
+    
+    var showSymbols by remember { mutableStateOf(true) }
+    var showOptionsMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(cookingLog, showHistorySheet.value, showDeleteHistoryDialog.value, pendingDuplicates) {
         swipeEnabled.value = cookingLog == null && !showHistorySheet.value && !showDeleteHistoryDialog.value && pendingDuplicates == null
@@ -134,11 +144,21 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Ulam Recommendations") },
+                title = { Text( text = "Recommendations",
+                                fontWeight = FontWeight.Bold
+                ) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 actions = {
                     TextButton(
                         onClick = { viewModel.undoCook() },
-                        enabled = lastDeductions != null
+                        enabled = lastDeductions != null,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
+                        )
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Filled.Undo, null, modifier = Modifier.size(18.dp))
@@ -146,8 +166,32 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
                             Text("Undo Cook")
                         }
                     }
-                    IconButton(onClick = { showHistorySheet.value = true }) {
-                        BadgedBox(badge = { if (historyLogs.isNotEmpty()) Badge { Text(historyLogs.size.toString()) } }) { Icon(Icons.Default.History, null) }
+                    Box {
+                        IconButton(onClick = { showOptionsMenu = true }) {
+                            Icon(Icons.Default.MoreVert, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                        DropdownMenu(
+                            expanded = showOptionsMenu,
+                            onDismissRequest = { showOptionsMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("View History") },
+                                leadingIcon = { Icon(Icons.Default.History, null) },
+                                onClick = { 
+                                    showOptionsMenu = false
+                                    showHistorySheet.value = true 
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(if (showSymbols) "Show Scores as Numbers" else "Show Scores as Symbols") },
+                                leadingIcon = { Icon(if (showSymbols) Icons.Default.Numbers else Icons.Default.Schedule, null) },
+                                onClick = { 
+                                    showSymbols = !showSymbols
+                                    showOptionsMenu = false
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -187,13 +231,13 @@ fun RecommendationScreen(viewModel: RecommendationViewModel = viewModel()) {
                 }
 
                 if (recommendations.isEmpty()) Box(Modifier.fillMaxSize(), Alignment.Center) { Text("No recommendations.") }
-                else LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+                else LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 16.dp, top = 10.dp)) {
                     itemsIndexed(recommendations) { index, item ->
                         if (index == 0) {
                             Text("Ulam of the Day", style = MaterialTheme.typography.titleLarge, color = if (item.hasSpoiledIngredients) Color.Gray else MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
-                            RecipeCard(item, true) { viewModel.cookRecipe(item.recipe) }
+                            RecipeCard(item, true, showSymbols) { viewModel.cookRecipe(item.recipe) }
                             if (recommendations.size > 1) Text("Runner-ups", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 8.dp))
-                        } else RecipeCard(item, false) { viewModel.cookRecipe(item.recipe) }
+                        } else RecipeCard(item, false, showSymbols) { viewModel.cookRecipe(item.recipe) }
                     }
                 }
             }
@@ -217,19 +261,89 @@ fun AlertCard(title: String, containerColor: Color, contentColor: Color, expande
 }
 
 @Composable
-fun RecipeCard(item: RecommendedRecipe, isTop: Boolean, onCook: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = when { item.hasSpoiledIngredients -> MaterialTheme.colorScheme.surfaceVariant; isTop -> MaterialTheme.colorScheme.primaryContainer; else -> MaterialTheme.colorScheme.surface })) {
+fun RecipeCard(item: RecommendedRecipe, isTop: Boolean, useSymbols: Boolean, onCook: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = when { item.hasSpoiledIngredients -> MaterialTheme.colorScheme.surfaceVariant; isTop -> MaterialTheme.colorScheme.secondaryContainer; else -> MaterialTheme.colorScheme.surface })) {
         Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Text(item.recipe.name, style = if (isTop) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = if (item.hasSpoiledIngredients) Color.Gray else Color.Unspecified)
                 if (item.hasSpoiledIngredients) Badge { Text("UNSAFE") }
                 else if (item.isInsufficient) Badge(containerColor = MaterialTheme.colorScheme.errorContainer) { Text("Missing Items", color = MaterialTheme.colorScheme.error) }
             }
-            if (!item.hasSpoiledIngredients) Text("Urgency Score: ${String.format(Locale.getDefault(), "%.4f", item.urgencyScore)}", style = MaterialTheme.typography.bodySmall)
+            if (!item.hasSpoiledIngredients) {
+                if (useSymbols) {
+                    val capacity = item.recipe.ingredients.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
+                    val normalizedScore = if (capacity > 0) (item.urgencyScore / capacity) * 10.0 else 0.0
+                    UrgencyClockScale(normalizedScore)
+                } else {
+                    Text(
+                        text = "Urgency Score: ${String.format(Locale.getDefault(), "%.4f", item.urgencyScore)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
             item.reasons.forEach { Text(it, Modifier.padding(top = 4.dp), style = MaterialTheme.typography.bodyMedium) }
             Row(Modifier.fillMaxWidth().padding(top = 16.dp), Arrangement.End) {
                 Button(onCook, enabled = !item.hasSpoiledIngredients) { Text("Cook This") }
             }
         }
+    }
+}
+
+@Composable
+fun UrgencyClockScale(score: Double) {
+    Row(
+        modifier = Modifier.padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // High contrast colors for better visibility
+        val activeColor = MaterialTheme.colorScheme.primary
+        val inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+
+        repeat(10) { index ->
+            val clockValue = index + 1
+            val isFull = score >= clockValue
+            val isHalf = !isFull && score >= (clockValue - 0.5)
+
+            Box(contentAlignment = Alignment.Center) {
+                // Background Gray Clock
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = inactiveColor
+                )
+                
+                if (isFull) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = activeColor
+                    )
+                } else if (isHalf) {
+                    // Half-filled clock using a clip
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(HalfSizeShape())
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = activeColor
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private class HalfSizeShape : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        return Outline.Rectangle(Rect(0f, 0f, size.width / 2f, size.height))
     }
 }

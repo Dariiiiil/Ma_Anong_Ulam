@@ -80,7 +80,11 @@ fun ShoppingListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Shopping List") },
+                title = { Text("Shopping List", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
                 actions = {
                     IconButton(
                         onClick = { 

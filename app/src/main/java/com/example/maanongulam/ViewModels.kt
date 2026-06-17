@@ -10,33 +10,45 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// --- Recommendation & Recipe Management ---
-
+/**
+ * --- RECOMMENDATION VIEW MODEL ---
+ * Responsibility: Manages recipe logic, cooking logs, and recommendation triggers.
+ */
 class RecommendationViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val dao = database.maAnongUlamDao()
 
+    // Observes all recipes from the database
     val allRecipes: StateFlow<List<RecipeEntity>> = dao.getAllRecipes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Observes all ingredients in the inventory
     val allIngredients: StateFlow<List<IngredientEntity>> = dao.getAllIngredients()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Observes the history of cooked meals
     val allCookingLogs: StateFlow<List<CookingLogEntity>> = dao.getAllCookingLogs()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /**
+     * COMBINED RECOMMENDATIONS FLOW
+     * This reacts whenever ingredients or recipes change.
+     * It maps the database entities to domain models and runs the Recommendation Engine.
+     */
     val recommendations: StateFlow<List<RecommendedRecipe>> = combine(
         allIngredients.map { entities -> entities.map { it.toDomainModel() } },
         allRecipes.map { entities -> entities.map { it.toDomainModel() } }
     ) { inventory, recipes ->
         if (inventory.isEmpty() || recipes.isEmpty()) emptyList<RecommendedRecipe>()
         else {
+            // Run recommendation logic in the background thread (Default dispatcher)
             withContext(Dispatchers.Default) {
                 RecipeRecommendationEngine.recommendTopRecipes(inventory, recipes)
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // UI States for reporting and handling user flow
     private val _cookingLog = MutableStateFlow<List<String>?>(null)
     val cookingLog: StateFlow<List<String>?> = _cookingLog.asStateFlow()
 
@@ -49,23 +61,32 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     private val _lastFailedRecipe = MutableStateFlow<Recipe?>(null)
     val lastFailedRecipe: StateFlow<Recipe?> = _lastFailedRecipe.asStateFlow()
 
+    /**
+     * COOK RECIPE LOGIC
+     * 1. Calculates shortages for the requested recipe.
+     * 2. If 'force' is true, it proceeds even with missing items.
+     * 3. Uses a Database Transaction to ensure inventory is updated accurately.
+     */
     fun cookRecipe(recipe: Recipe, force: Boolean = false) {
         viewModelScope.launch {
             val log = mutableListOf<String>()
             val shortages = mutableListOf<String>()
             val ingredientsToDeduct = mutableMapOf<String, List<Pair<IngredientEntity, Double>>>()
 
+            // Analyze inventory for each required ingredient
             recipe.ingredients.forEach { needed ->
                 val matchingBatches = dao.getIngredientsByName(needed.name.trim())
                 val totalAvailableBase = matchingBatches.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
                 val neededBase = UnitConverter.toBaseUnit(needed.quantity, needed.unit)
 
+                // Detect shortages (using a small float epsilon for accuracy)
                 if (totalAvailableBase < (neededBase - 0.001)) {
                     val shortfallBase = neededBase - totalAvailableBase
                     val shortfallDisplay = UnitConverter.formatDisplay(UnitConverter.fromBaseUnit(shortfallBase, needed.unit), needed.unit)
                     shortages.add("❌ ${needed.name}: Short by $shortfallDisplay")
                 }
                 
+                // Prioritize batches by Expiry Date (FIFO logic)
                 val sortedBatches = matchingBatches.sortedWith(compareBy<IngredientEntity> { it.expirationDate == 0L }.thenBy { it.expirationDate })
                 var remainingToDeductBase = neededBase
                 val plannedDeductions = mutableListOf<Pair<IngredientEntity, Double>>()
@@ -80,6 +101,7 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                 ingredientsToDeduct[needed.name] = plannedDeductions
             }
 
+            // Check if we can proceed
             if (shortages.isNotEmpty() && !force) {
                 log.add("Cannot cook ${recipe.name} fully!")
                 log.addAll(shortages)
@@ -88,6 +110,8 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
             } else {
                 log.add(if (force) "Cooking ${recipe.name} with missing items..." else "Cooking ${recipe.name}...")
                 val allDeductions = mutableListOf<Pair<IngredientEntity, Double>>()
+                
+                // Perform the actual database deductions
                 database.withTransaction {
                     ingredientsToDeduct.forEach { (name, deductions) ->
                         var totalUsedInNeededUnit = 0.0
@@ -96,11 +120,14 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                             val newQty = (entity.quantity - amountToDeduct).coerceAtLeast(0.0)
                             if (newQty <= 0.001) dao.deleteIngredient(entity)
                             else dao.insertOrUpdateIngredient(entity.copy(quantity = newQty))
+                            
+                            // Convert used amount for the summary log
                             totalUsedInNeededUnit += UnitConverter.fromBaseUnit(UnitConverter.toBaseUnit(amountToDeduct, entity.unit), neededUnit)
                             allDeductions.add(entity to amountToDeduct)
                         }
                         log.add("✅ $name: Used ${UnitConverter.formatDisplay(totalUsedInNeededUnit, neededUnit)}")
                     }
+                    // Record the session in the log
                     dao.insertCookingLog(CookingLogEntity(recipeName = recipe.name, timestamp = System.currentTimeMillis()))
                 }
                 _lastCookingDeductions.value = allDeductions
@@ -111,6 +138,10 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    /**
+     * UNDO COOK FEATURE
+     * Reverses the most recent inventory deduction and removes the history entry.
+     */
     fun undoCook() {
         val deductions = _lastCookingDeductions.value ?: return
         viewModelScope.launch {
@@ -120,11 +151,11 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
                     if (current != null) {
                         dao.insertOrUpdateIngredient(current.copy(quantity = current.quantity + amount))
                     } else {
-                        // Batch was deleted because it reached 0
+                        // Re-create the batch if it was deleted
                         dao.insertOrUpdateIngredient(originalEntity.copy(quantity = amount))
                     }
                 }
-                // Also remove the last cooking log entry
+                // Remove the last cooking log entry
                 val lastLog = dao.getAllCookingLogsOnce().firstOrNull()
                 if (lastLog != null) {
                     dao.deleteCookingLog(lastLog)
@@ -155,9 +186,14 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     fun deleteAllRecipes() { viewModelScope.launch { dao.deleteAllRecipes() } }
     fun deleteAllCookingLogs() { viewModelScope.launch { dao.deleteAllCookingLogs() } }
 
+    /**
+     * SHOPPING INTEGRATION
+     * Merges missing recipe items into the shopping list.
+     * Identifies duplicates and asks the user for confirmation.
+     */
     fun addMissingToShoppingList(missing: List<Ingredient>, isManual: Boolean = true) {
         viewModelScope.launch {
-            val mergedMissing = missing.groupBy { it.name.trim().lowercase() }.map { (lowName, items) ->
+            val mergedMissing = missing.groupBy { it.name.trim().lowercase() }.map { (_, items) ->
                 val first = items.first()
                 val totalBase = items.sumOf { UnitConverter.toBaseUnit(it.quantity, it.unit) }
                 Ingredient(name = first.name.trim(), quantity = UnitConverter.fromBaseUnit(totalBase, first.unit), unit = first.unit, expirationDate = 0L)
@@ -200,8 +236,10 @@ class RecommendationViewModel(application: Application) : AndroidViewModel(appli
     }
 }
 
-// --- Ingredient Management ---
-
+/**
+ * --- INGREDIENT VIEW MODEL ---
+ * Responsibility: Handles adding, updating, and deleting inventory items.
+ */
 class IngredientViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = AppDatabase.getDatabase(application).maAnongUlamDao()
 
@@ -246,13 +284,18 @@ class IngredientViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    /**
+     * MOVE TO INVENTORY
+     * Logic for transferring a bought shopping item into the pantry/fridge.
+     */
     fun moveToInventory(item: ShoppingItem, foodDefinition: FoodDefinitionEntity?) {
         viewModelScope.launch {
             val expiry = if (foodDefinition?.isImperishable == true) 0L else {
-                System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L) // Default 1 week
+                System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L) // Default 1 week shelf life
             }
             val category = foodDefinition?.category ?: "Others"
             
+            // Check for existing matching batches to merge quantities
             val existing = dao.getIngredientByName(item.name)
             if (existing != null && existing.expirationDate == expiry) {
                 val totalBase = UnitConverter.toBaseUnit(existing.quantity, existing.unit) + UnitConverter.toBaseUnit(item.quantity, item.unit)
@@ -274,8 +317,10 @@ class IngredientViewModel(application: Application) : AndroidViewModel(applicati
     fun deleteAllIngredients() { viewModelScope.launch { dao.deleteAllIngredients() } }
 }
 
-// --- Shopping List Management ---
-
+/**
+ * --- SHOPPING VIEW MODEL ---
+ * Responsibility: Manages the shopping list state and checked items.
+ */
 class ShoppingViewModel(application: Application) : AndroidViewModel(application) {
     private val dao = AppDatabase.getDatabase(application).maAnongUlamDao()
 
@@ -305,7 +350,6 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 }
 
 // --- Legacy/Simple Recipe Handler ---
-
 class RecipeViewModel : ViewModel() {
     private val _inventory = MutableStateFlow<List<Ingredient>>(emptyList())
     val inventory: StateFlow<List<Ingredient>> = _inventory.asStateFlow()

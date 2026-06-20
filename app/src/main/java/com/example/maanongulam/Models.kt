@@ -4,11 +4,13 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-// --- Domain Models (Used in UI and Logic) ---
-
 /**
- * Represents a food ingredient with its quantity and expiration information.
+ * --- DOMAIN MODELS ---
+ * These are "clean" data classes used by the UI and the Recommendation Engine.
+ * They represent data in a way that is easy for business logic to process.
  */
+
+// Represents a food ingredient with its quantity and expiration information.
 data class Ingredient(
     val name: String,
     val quantity: Double,
@@ -17,17 +19,13 @@ data class Ingredient(
     val category: String = "Others"
 )
 
-/**
- * Represents a food recipe.
- */
+// Represents a food recipe.
 data class Recipe(
     val name: String,
     val ingredients: List<Ingredient>
 )
 
-/**
- * Data class representing a recipe recommendation result.
- */
+// Represents a recipe recommendation result with scores and specific reasons.
 data class RecommendedRecipe(
     val recipe: Recipe,
     val urgencyScore: Double,
@@ -37,26 +35,25 @@ data class RecommendedRecipe(
     val missingIngredients: List<Ingredient> = emptyList()
 )
 
-// --- Room Entities (Database Tables) ---
-
 /**
- * Room Entity for storing ingredients in the local database.
+ * --- ROOM ENTITIES (DATABASE TABLES) ---
+ * These classes define the actual structure of the database tables.
+ * Each "Entity" corresponds to a table in the SQLite database.
  */
+
+// Table for storing inventory batches.
 @Entity(tableName = "ingredients")
 data class IngredientEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    @ColumnInfo(collate = ColumnInfo.NOCASE)
+    @ColumnInfo(collate = ColumnInfo.NOCASE) // Makes searching case-insensitive
     val name: String,
     val quantity: Double,
-    val unit: String = "g", // Defaults to grams (Philippine metric standard)
+    val unit: String = "g",
     val expirationDate: Long,
     val category: String = "Others"
 )
 
-/**
- * Room Entity for storing recipes.
- * The ingredients list is handled by your TypeConverters.
- */
+// Table for storing user-defined recipes.
 @Entity(tableName = "recipes")
 data class RecipeEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -66,9 +63,7 @@ data class RecipeEntity(
     companion object
 }
 
-/**
- * Room Entity for tracking what has been cooked.
- */
+// Table for tracking cooking history.
 @Entity(tableName = "cooking_logs")
 data class CookingLogEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -76,22 +71,18 @@ data class CookingLogEntity(
     val timestamp: Long
 )
 
-/**
- * Room Entity for defining a food type and its attributes.
- */
+// Master lookup table for food types (Category, Mass vs Volume).
 @Entity(tableName = "food_definitions")
 data class FoodDefinitionEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     @ColumnInfo(collate = ColumnInfo.NOCASE)
     val name: String,
-    val unitType: String, // "MASS", "VOLUME", "COUNT"
+    val unitType: String, // "MASS" or "VOLUME"
     val category: String = "Others",
     val isImperishable: Boolean = false
 )
 
-/**
- * Room Entity for the shopping list items.
- */
+// Table for the shopping list items.
 @Entity(tableName = "shopping_list")
 data class ShoppingItem(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -102,11 +93,12 @@ data class ShoppingItem(
     val isChecked: Boolean = false
 )
 
-// --- Conversion Extensions ---
-
 /**
- * Converts Ingredient Database Entity to Domain Model.
+ * --- CONVERSION EXTENSIONS ---
+ * These helper functions convert Database Entities to Domain Models.
+ * This keeps the UI logic separate from the Database structure (Separation of Concerns).
  */
+
 fun IngredientEntity.toDomainModel() = Ingredient(
     name = name,
     quantity = quantity,
@@ -115,17 +107,11 @@ fun IngredientEntity.toDomainModel() = Ingredient(
     category = category
 )
 
-/**
- * Converts Recipe Database Entity to Domain Model.
- */
 fun RecipeEntity.toDomainModel() = Recipe(
     name = name,
     ingredients = ingredients
 )
 
-/**
- * Creates a Recipe Database Entity from a Domain Model.
- */
 fun RecipeEntity.Companion.fromDomainModel(recipe: Recipe) = RecipeEntity(
     name = recipe.name,
     ingredients = recipe.ingredients

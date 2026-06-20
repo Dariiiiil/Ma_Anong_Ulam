@@ -10,14 +10,23 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
-// --- Room Database Configuration ---
-
+/**
+ * --- DATABASE CONFIGURATION ---
+ * This class defines the database tables (entities) and the version.
+ * It uses the Singleton pattern to ensure only one instance of the database exists.
+ */
 @Database(
-    entities = [IngredientEntity::class, RecipeEntity::class, CookingLogEntity::class, ShoppingItem::class, FoodDefinitionEntity::class],
+    entities = [
+        IngredientEntity::class, 
+        RecipeEntity::class, 
+        CookingLogEntity::class, 
+        ShoppingItem::class, 
+        FoodDefinitionEntity::class
+    ],
     version = 14,
     exportSchema = false,
 )
-@TypeConverters(Converters::class)
+@TypeConverters(Converters::class) // Handles complex objects like List<Ingredient>
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun maAnongUlamDao(): MaAnongUlamDao
@@ -26,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        // Singleton pattern: Returns the existing database or creates a new one
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -41,6 +51,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Database Callback: Runs when the database is first opened
         private class AppDatabaseCallback : Callback() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 super.onOpen(db)
@@ -48,6 +59,7 @@ abstract class AppDatabase : RoomDatabase() {
                     CoroutineScope(Dispatchers.IO).launch {
                         val dao = database.maAnongUlamDao()
                         val recipes = dao.getAllRecipesSnapshot()
+                        // If the database is empty, seed it with initial data
                         if (recipes.isEmpty()) {
                             seedDatabase(dao)
                         }
@@ -55,99 +67,109 @@ abstract class AppDatabase : RoomDatabase() {
                 }
             }
 
-    suspend fun seedDatabase(dao: MaAnongUlamDao) {
-        val oneWeekFromNow = System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L)
+            /**
+             * SEED DATABASE FUNCTION
+             * Populates the app with default food types, ingredients, and recipes
+             * during the first run or after a clear-data action.
+             */
+            suspend fun seedDatabase(dao: MaAnongUlamDao) {
+                val oneWeekFromNow = System.currentTimeMillis() + (7 * 24 * 60 * 60 * 1000L)
 
-        val defaultDefinitions = listOf(
-            FoodDefinitionEntity(name = "Chicken", unitType = "MASS", category = "Meat"),
-            FoodDefinitionEntity(name = "Pork", unitType = "MASS", category = "Meat"),
-            FoodDefinitionEntity(name = "Beef", unitType = "MASS", category = "Meat"),
-            FoodDefinitionEntity(name = "Liver", unitType = "MASS", category = "Meat"),
-            FoodDefinitionEntity(name = "Soy Sauce", unitType = "VOLUME", category = "Spices", isImperishable = true),
-            FoodDefinitionEntity(name = "Vinegar", unitType = "VOLUME", category = "Spices", isImperishable = true),
-            FoodDefinitionEntity(name = "Tomato Sauce", unitType = "VOLUME", category = "Spices"),
-            FoodDefinitionEntity(name = "Tamarind Mix", unitType = "MASS", category = "Spices", isImperishable = true),
-            FoodDefinitionEntity(name = "Curry Powder", unitType = "MASS", category = "Spices", isImperishable = true),
-            FoodDefinitionEntity(name = "Star Anise", unitType = "MASS", category = "Spices", isImperishable = true),
-            FoodDefinitionEntity(name = "Sugar", unitType = "MASS", category = "Spices", isImperishable = true),
-            FoodDefinitionEntity(name = "Garlic", unitType = "MASS", category = "Vegetables"),
-            FoodDefinitionEntity(name = "Peppercorns", unitType = "MASS", category = "Spices", isImperishable = true),
-            FoodDefinitionEntity(name = "Bay Leaves", unitType = "MASS", category = "Spices", isImperishable = true),
-            FoodDefinitionEntity(name = "Radish", unitType = "MASS", category = "Vegetables"),
-            FoodDefinitionEntity(name = "Eggplant", unitType = "MASS", category = "Vegetables"),
-            FoodDefinitionEntity(name = "String Beans", unitType = "MASS", category = "Vegetables"),
-            FoodDefinitionEntity(name = "Potato", unitType = "MASS", category = "Vegetables"),
-            FoodDefinitionEntity(name = "Carrot", unitType = "MASS", category = "Vegetables"),
-            FoodDefinitionEntity(name = "Egg", unitType = "MASS", category = "Dairy"),
-            FoodDefinitionEntity(name = "Milk", unitType = "VOLUME", category = "Dairy"),
-            FoodDefinitionEntity(name = "Coconut Milk", unitType = "VOLUME", category = "Dairy"),
-            FoodDefinitionEntity(name = "Rice", unitType = "MASS", category = "Grains", isImperishable = true),
-            FoodDefinitionEntity(name = "Water", unitType = "VOLUME", category = "Others", isImperishable = true)
-        )
-        defaultDefinitions.forEach { dao.insertFoodDefinition(it) }
+                // 1. Define Default Food Types (The master list for dropdowns)
+                val defaultDefinitions = listOf(
+                    FoodDefinitionEntity(name = "Chicken", unitType = "MASS", category = "Meat"),
+                    FoodDefinitionEntity(name = "Pork", unitType = "MASS", category = "Meat"),
+                    FoodDefinitionEntity(name = "Beef", unitType = "MASS", category = "Meat"),
+                    FoodDefinitionEntity(name = "Liver", unitType = "MASS", category = "Meat"),
+                    FoodDefinitionEntity(name = "Soy Sauce", unitType = "VOLUME", category = "Spices", isImperishable = true),
+                    FoodDefinitionEntity(name = "Vinegar", unitType = "VOLUME", category = "Spices", isImperishable = true),
+                    FoodDefinitionEntity(name = "Tomato Sauce", unitType = "VOLUME", category = "Spices"),
+                    FoodDefinitionEntity(name = "Tamarind Mix", unitType = "MASS", category = "Spices", isImperishable = true),
+                    FoodDefinitionEntity(name = "Curry Powder", unitType = "MASS", category = "Spices", isImperishable = true),
+                    FoodDefinitionEntity(name = "Star Anise", unitType = "MASS", category = "Spices", isImperishable = true),
+                    FoodDefinitionEntity(name = "Sugar", unitType = "MASS", category = "Spices", isImperishable = true),
+                    FoodDefinitionEntity(name = "Garlic", unitType = "MASS", category = "Vegetables"),
+                    FoodDefinitionEntity(name = "Peppercorns", unitType = "MASS", category = "Spices", isImperishable = true),
+                    FoodDefinitionEntity(name = "Bay Leaves", unitType = "MASS", category = "Spices", isImperishable = true),
+                    FoodDefinitionEntity(name = "Radish", unitType = "MASS", category = "Vegetables"),
+                    FoodDefinitionEntity(name = "Eggplant", unitType = "MASS", category = "Vegetables"),
+                    FoodDefinitionEntity(name = "String Beans", unitType = "MASS", category = "Vegetables"),
+                    FoodDefinitionEntity(name = "Potato", unitType = "MASS", category = "Vegetables"),
+                    FoodDefinitionEntity(name = "Carrot", unitType = "MASS", category = "Vegetables"),
+                    FoodDefinitionEntity(name = "Egg", unitType = "MASS", category = "Dairy"),
+                    FoodDefinitionEntity(name = "Milk", unitType = "VOLUME", category = "Dairy"),
+                    FoodDefinitionEntity(name = "Coconut Milk", unitType = "VOLUME", category = "Dairy"),
+                    FoodDefinitionEntity(name = "Rice", unitType = "MASS", category = "Grains", isImperishable = true),
+                    FoodDefinitionEntity(name = "Water", unitType = "VOLUME", category = "Others", isImperishable = true)
+                )
+                defaultDefinitions.forEach { dao.insertFoodDefinition(it) }
 
-        val defaultIngredients = listOf(
-            IngredientEntity(name = "Chicken", quantity = 1000.0, unit = "g", expirationDate = oneWeekFromNow, category = "Meat"),
-            IngredientEntity(name = "Soy Sauce", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow, category = "Spices"),
-            IngredientEntity(name = "Vinegar", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow, category = "Spices"),
-            IngredientEntity(name = "Garlic", quantity = 100.0, unit = "g", expirationDate = oneWeekFromNow, category = "Vegetables"),
-            IngredientEntity(name = "Peppercorns", quantity = 50.0, unit = "g", expirationDate = oneWeekFromNow, category = "Spices"),
-            IngredientEntity(name = "Bay Leaves", quantity = 10.0, unit = "g", expirationDate = oneWeekFromNow, category = "Spices")
-        )
-        defaultIngredients.forEach { dao.insertOrUpdateIngredient(it) }
+                // 2. Add Initial Ingredients to Inventory
+                val defaultIngredients = listOf(
+                    IngredientEntity(name = "Chicken", quantity = 1000.0, unit = "g", expirationDate = oneWeekFromNow, category = "Meat"),
+                    IngredientEntity(name = "Soy Sauce", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow, category = "Spices"),
+                    IngredientEntity(name = "Vinegar", quantity = 500.0, unit = "ml", expirationDate = oneWeekFromNow, category = "Spices"),
+                    IngredientEntity(name = "Garlic", quantity = 100.0, unit = "g", expirationDate = oneWeekFromNow, category = "Vegetables"),
+                    IngredientEntity(name = "Peppercorns", quantity = 50.0, unit = "g", expirationDate = oneWeekFromNow, category = "Spices"),
+                    IngredientEntity(name = "Bay Leaves", quantity = 10.0, unit = "g", expirationDate = oneWeekFromNow, category = "Spices")
+                )
+                defaultIngredients.forEach { dao.insertOrUpdateIngredient(it) }
 
-        // --- Default Recipes ---
-        
-        dao.insertRecipe(RecipeEntity(name = "Chicken Adobo", ingredients = listOf(
-            Ingredient("Chicken", 500.0, "g", 0L),
-            Ingredient("Soy Sauce", 100.0, "ml", 0L),
-            Ingredient("Vinegar", 50.0, "ml", 0L),
-            Ingredient("Garlic", 20.0, "g", 0L),
-            Ingredient("Peppercorns", 5.0, "g", 0L),
-            Ingredient("Bay Leaves", 2.0, "g", 0L)
-        )))
+                // 3. Add Default Filipino Recipes
+                dao.insertRecipe(RecipeEntity(name = "Chicken Adobo", ingredients = listOf(
+                    Ingredient("Chicken", 500.0, "g", 0L),
+                    Ingredient("Soy Sauce", 100.0, "ml", 0L),
+                    Ingredient("Vinegar", 50.0, "ml", 0L),
+                    Ingredient("Garlic", 20.0, "g", 0L),
+                    Ingredient("Peppercorns", 5.0, "g", 0L),
+                    Ingredient("Bay Leaves", 2.0, "g", 0L)
+                )))
 
-        dao.insertRecipe(RecipeEntity(name = "Sinigang na Baboy", ingredients = listOf(
-            Ingredient("Pork", 500.0, "g", 0L),
-            Ingredient("Tamarind Mix", 1.0, "g", 0L),
-            Ingredient("Radish", 100.0, "g", 0L),
-            Ingredient("Eggplant", 100.0, "g", 0L),
-            Ingredient("String Beans", 50.0, "g", 0L),
-            Ingredient("Water", 1.5, "L", 0L)
-        )))
+                dao.insertRecipe(RecipeEntity(name = "Sinigang na Baboy", ingredients = listOf(
+                    Ingredient("Pork", 500.0, "g", 0L),
+                    Ingredient("Tamarind Mix", 1.0, "g", 0L),
+                    Ingredient("Radish", 100.0, "g", 0L),
+                    Ingredient("Eggplant", 100.0, "g", 0L),
+                    Ingredient("String Beans", 50.0, "g", 0L),
+                    Ingredient("Water", 1.5, "L", 0L)
+                )))
 
-        dao.insertRecipe(RecipeEntity(name = "Chicken Curry", ingredients = listOf(
-            Ingredient("Chicken", 500.0, "g", 0L),
-            Ingredient("Curry Powder", 20.0, "g", 0L),
-            Ingredient("Coconut Milk", 200.0, "ml", 0L),
-            Ingredient("Potato", 150.0, "g", 0L),
-            Ingredient("Carrot", 100.0, "g", 0L)
-        )))
+                dao.insertRecipe(RecipeEntity(name = "Chicken Curry", ingredients = listOf(
+                    Ingredient("Chicken", 500.0, "g", 0L),
+                    Ingredient("Curry Powder", 20.0, "g", 0L),
+                    Ingredient("Coconut Milk", 200.0, "ml", 0L),
+                    Ingredient("Potato", 150.0, "g", 0L),
+                    Ingredient("Carrot", 100.0, "g", 0L)
+                )))
 
-        dao.insertRecipe(RecipeEntity(name = "Pork Menudo", ingredients = listOf(
-            Ingredient("Pork", 500.0, "g", 0L),
-            Ingredient("Tomato Sauce", 200.0, "ml", 0L),
-            Ingredient("Liver", 100.0, "g", 0L),
-            Ingredient("Potato", 100.0, "g", 0L),
-            Ingredient("Carrot", 100.0, "g", 0L)
-        )))
+                dao.insertRecipe(RecipeEntity(name = "Pork Menudo", ingredients = listOf(
+                    Ingredient("Pork", 500.0, "g", 0L),
+                    Ingredient("Tomato Sauce", 200.0, "ml", 0L),
+                    Ingredient("Liver", 100.0, "g", 0L),
+                    Ingredient("Potato", 100.0, "g", 0L),
+                    Ingredient("Carrot", 100.0, "g", 0L)
+                )))
 
-        dao.insertRecipe(RecipeEntity(name = "Beef Pares", ingredients = listOf(
-            Ingredient("Beef", 500.0, "g", 0L),
-            Ingredient("Star Anise", 2.0, "g", 0L),
-            Ingredient("Soy Sauce", 100.0, "ml", 0L),
-            Ingredient("Sugar", 50.0, "g", 0L),
-            Ingredient("Garlic", 20.0, "g", 0L)
-        )))
-    }
+                dao.insertRecipe(RecipeEntity(name = "Beef Pares", ingredients = listOf(
+                    Ingredient("Beef", 500.0, "g", 0L),
+                    Ingredient("Star Anise", 2.0, "g", 0L),
+                    Ingredient("Soy Sauce", 100.0, "ml", 0L),
+                    Ingredient("Sugar", 50.0, "g", 0L),
+                    Ingredient("Garlic", 20.0, "g", 0L)
+                )))
+            }
         }
     }
 }
 
-// --- Data Access Object (DAO) ---
-
+/**
+ * --- DATA ACCESS OBJECT (DAO) ---
+ * Defines the SQL queries used to interact with the database.
+ * Room automatically implements these functions.
+ */
 @Dao
 interface MaAnongUlamDao {
+    // Inventory Operations
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateIngredient(ingredient: IngredientEntity)
 
@@ -169,6 +191,7 @@ interface MaAnongUlamDao {
     @Query("DELETE FROM ingredients")
     suspend fun deleteAllIngredients()
 
+    // Recipe Operations
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecipe(recipe: RecipeEntity)
 
@@ -184,6 +207,7 @@ interface MaAnongUlamDao {
     @Query("DELETE FROM recipes")
     suspend fun deleteAllRecipes()
 
+    // Cooking History Operations
     @Insert
     suspend fun insertCookingLog(log: CookingLogEntity)
 
@@ -199,6 +223,7 @@ interface MaAnongUlamDao {
     @Query("DELETE FROM cooking_logs")
     suspend fun deleteAllCookingLogs()
 
+    // Shopping List Operations
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertShoppingItem(item: ShoppingItem)
 
@@ -211,7 +236,7 @@ interface MaAnongUlamDao {
     @Delete
     suspend fun deleteShoppingItem(item: ShoppingItem)
 
-    // --- Food Definitions ---
+    // Master Food Definitions (Lookups)
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFoodDefinition(definition: FoodDefinitionEntity)
 
@@ -225,8 +250,11 @@ interface MaAnongUlamDao {
     suspend fun deleteFoodDefinition(definition: FoodDefinitionEntity)
 }
 
-// --- Room Type Converters ---
-
+/**
+ * --- ROOM TYPE CONVERTERS ---
+ * Room can't store complex objects like List<Ingredient> directly.
+ * These converters turn lists into JSON strings for storage and back again.
+ */
 class Converters {
     private val gson = Gson()
 

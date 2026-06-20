@@ -4,6 +4,10 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+base {
+    archivesName.set("Ma Anong Ulam")
+}
+
 android {
     namespace = "com.example.maanongulam"
     compileSdk = 36
@@ -27,12 +31,23 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
         compose = true
+    }
+}
+
+project.afterEvaluate {
+    @Suppress("DEPRECATION")
+    (extensions.findByName("android") as? com.android.build.gradle.AppExtension)?.applicationVariants?.all {
+        outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output?.outputFileName = "Ma Anong Ulam.apk"
+        }
     }
 }
 
